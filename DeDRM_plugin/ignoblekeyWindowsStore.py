@@ -22,11 +22,7 @@ import hashlib
 from lxml import etree
 
 def unpad(data, padding=16):
-    if sys.version_info[0] == 2:
-        pad_len = ord(data[-1])
-    else:
-        pad_len = data[-1]
-
+    pad_len = ord(data[-1]) if sys.version_info[0] == 2 else data[-1]
     return data[:-pad_len]
 
 
@@ -42,7 +38,7 @@ def dump_keys(print_result=False):
         print("Database file not found. Is the Nook Windows Store app installed?")
         return []
 
-    
+
     # Python2 has no fetchone() so we have to use fetchall() and discard everything but the first result.
     # There should only be one result anyways.
     serial_number = apsw.Connection(db_filename).cursor().execute(
@@ -68,10 +64,10 @@ def dump_keys(print_result=False):
             cc_hash = unpad(AES.new(hash_key, AES.MODE_CBC, encrypted_cc_hash[:16]).decrypt(encrypted_cc_hash[16:]), 16)
             decrypted_hashes.append((base64.b64encode(cc_hash).decode("ascii")))
             if print_result:
-                print("Nook ccHash is %s" % (base64.b64encode(cc_hash).decode("ascii")))
+                print(f'Nook ccHash is {base64.b64encode(cc_hash).decode("ascii")}')
         except: 
             traceback.print_exc()
-    
+
     return decrypted_hashes
 
 if __name__ == "__main__":

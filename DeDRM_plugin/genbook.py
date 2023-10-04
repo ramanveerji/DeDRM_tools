@@ -62,24 +62,22 @@ def lengthPrefixString(data):
 
 def readString(file):
     stringLength = readEncodedNumber(file)
-    if (stringLength == None):
+    if stringLength is None:
         return None
     sv = file.read(stringLength)
     if (len(sv)  != stringLength):
         return ""
-    return unpack(str(stringLength)+"s",sv)[0]
+    return unpack(f"{str(stringLength)}s", sv)[0]
 
 def getMetaArray(metaFile):
     # parse the meta file
     result = {}
-    fo = open(metaFile,'rb')
-    size = readEncodedNumber(fo)
-    for i in range(size):
-        tag = readString(fo)
-        value = readString(fo)
-        result[tag] = value
-        # print(tag, value)
-    fo.close()
+    with open(metaFile,'rb') as fo:
+        size = readEncodedNumber(fo)
+        for _ in range(size):
+            tag = readString(fo)
+            value = readString(fo)
+            result[tag] = value
     return result
 
 
@@ -91,8 +89,9 @@ class Dictionary(object):
         self.fo = open(dictFile,'rb')
         self.stable = []
         self.size = readEncodedNumber(self.fo)
-        for i in range(self.size):
-            self.stable.append(self.escapestr(readString(self.fo)))
+        self.stable.extend(
+            self.escapestr(readString(self.fo)) for _ in range(self.size)
+        )
         self.pos = 0
     def escapestr(self, str):
         str = str.replace(b'&',b'&amp;')
@@ -118,14 +117,11 @@ class PageDimParser(object):
     def __init__(self, flatxml):
         self.flatdoc = flatxml.split(b'\n')
     # find tag if within pos to end inclusive
-    def findinDoc(self, tagpath, pos, end) :
+    def findinDoc(self, tagpath, pos, end):
         result = None
         docList = self.flatdoc
         cnt = len(docList)
-        if end == -1 :
-            end = cnt
-        else:
-            end = min(cnt,end)
+        end = cnt if end == -1 else min(cnt,end)
         foundat = -1
         for j in range(pos, end):
             item = docList[j]
@@ -142,8 +138,8 @@ class PageDimParser(object):
     def process(self):
         (pos, sph) = self.findinDoc(b'page.h',0,-1)
         (pos, spw) = self.findinDoc(b'page.w',0,-1)
-        if (sph == None): sph = '-1'
-        if (spw == None): spw = '-1'
+        if sph is None: sph = '-1'
+        if spw is None: spw = '-1'
         return sph, spw
 
 def getPageDim(flatxml):
@@ -159,10 +155,7 @@ class GParser(object):
         self.gh = self.getData(b'info.glyph.h')
         self.gw = self.getData(b'info.glyph.w')
         self.guse = self.getData(b'info.glyph.use')
-        if self.guse :
-            self.count = len(self.guse)
-        else :
-            self.count = 0
+        self.count = len(self.guse) if self.guse else 0
         self.gvtx = self.getData(b'info.glyph.vtx')
         self.glen = self.getData(b'info.glyph.len')
         self.gdpi = self.getData(b'info.glyph.dpi')
@@ -207,15 +200,13 @@ class GParser(object):
             return path
         tx = self.vx[self.gvtx[gly]:self.gvtx[gly+1]]
         ty = self.vy[self.gvtx[gly]:self.gvtx[gly+1]]
-        p = 0
-        for k in range(self.glen[gly], self.glen[gly+1]):
+        for p, k in enumerate(range(self.glen[gly], self.glen[gly+1])):
             if (p == 0):
-                zx = tx[0:self.vlen[k]+1]
-                zy = ty[0:self.vlen[k]+1]
+                zx = tx[:self.vlen[k]+1]
+                zy = ty[:self.vlen[k]+1]
             else:
                 zx = tx[self.vlen[k-1]+1:self.vlen[k]+1]
                 zy = ty[self.vlen[k-1]+1:self.vlen[k]+1]
-            p += 1
             j = 0
             while ( j  < len(zx) ):
                 if (j == 0):
@@ -245,9 +236,7 @@ class GlyphDict(object):
         self.gdict = {}
     def lookup(self, id):
         # id='id="gl%d"' % val
-        if id in self.gdict:
-            return self.gdict[id]
-        return None
+        return self.gdict[id] if id in self.gdict else None
     def addGlyph(self, val, path):
         id='id="gl%d"' % val
         self.gdict[id] = path

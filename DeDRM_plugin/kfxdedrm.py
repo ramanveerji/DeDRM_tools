@@ -87,7 +87,6 @@ class KFXZipBook:
                 break
             except:
                 traceback.print_exc()
-                pass
         else:
             raise Exception("Failed to decrypt KFX DRM voucher with any key")
 

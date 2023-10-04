@@ -39,16 +39,12 @@ class DecryptNotBlockAlignedError(DecryptError):
 def xorS(a,b):
     """ XOR two strings """
     assert len(a)==len(b)
-    x = []
-    for i in range(len(a)):
-        x.append( chr(ord(a[i])^ord(b[i])))
+    x = [chr(ord(a[i])^ord(b[i])) for i in range(len(a))]
     return ''.join(x)
 
 def xor(a,b):
     """ XOR two strings """
-    x = []
-    for i in range(min(len(a),len(b))):
-        x.append( chr(ord(a[i])^ord(b[i])))
+    x = [chr(ord(a[i])^ord(b[i])) for i in range(min(len(a),len(b)))]
     return ''.join(x)
 
 """
@@ -88,7 +84,7 @@ class BlockCipher:
         else:
             self.bytesToEncrypt = ''
 
-        if more == None:   # no more data expected from caller
+        if more is None:   # no more data expected from caller
             finalBytes = self.padding.addPad(self.bytesToEncrypt,self.blockSize)
             if len(finalBytes) > 0:
                 ctBlock = self.encryptBlock(finalBytes)
@@ -102,7 +98,7 @@ class BlockCipher:
         self.bytesToDecrypt += cipherText  # append to any bytes from prior decrypt
 
         numBlocks, numExtraBytes = divmod(len(self.bytesToDecrypt), self.blockSize)
-        if more == None:  # no more calls to decrypt, should have all the data
+        if more is None:  # no more calls to decrypt, should have all the data
             if numExtraBytes  != 0:
                 raise DecryptNotBlockAlignedError('Data not block aligned on decrypt')
 
@@ -123,7 +119,7 @@ class BlockCipher:
         else:
             self.bytesToEncrypt = ''
 
-        if more == None:         # last decrypt remove padding
+        if more is None:         # last decrypt remove padding
             plainText = self.padding.removePad(plainText, self.blockSize)
             self.resetDecrypt()
         return plainText
@@ -145,7 +141,7 @@ class padWithPadLen(Pad):
 
     def removePad(self, paddedBinaryString, blockSize):
         """ Remove padding from a binary string """
-        if not(0<len(paddedBinaryString)):
+        if len(paddedBinaryString) <= 0:
             raise DecryptNotBlockAlignedError('Expected More Data')
         return paddedBinaryString[:-ord(paddedBinaryString[-1])]
 
@@ -195,7 +191,7 @@ class Rijndael(BlockCipher):
     def encryptBlock(self, plainTextBlock):
         """ Encrypt a block, plainTextBlock must be a array of bytes [Nb by 4] """
         self.state = self._toBlock(plainTextBlock)
-        AddRoundKey(self, self.__expandedKey[0:self.Nb])
+        AddRoundKey(self, self.__expandedKey[:self.Nb])
         for round in range(1,self.Nr):          #for round = 1 step 1 to Nr
             SubBytes(self)
             ShiftRows(self)
@@ -218,7 +214,7 @@ class Rijndael(BlockCipher):
             InvMixColumns(self)
         InvShiftRows(self)
         InvSubBytes(self)
-        AddRoundKey(self, self.__expandedKey[0:self.Nb])
+        AddRoundKey(self, self.__expandedKey[:self.Nb])
         return self._toBString(self.state)
 
     def _toBlock(self, bs):
@@ -230,8 +226,7 @@ class Rijndael(BlockCipher):
         """ Convert block (array of bytes) to binary string """
         l = []
         for col in block:
-            for rowElement in col:
-                l.append(chr(rowElement))
+            l.extend(chr(rowElement) for rowElement in col)
         return ''.join(l)
 #-------------------------------------
 """    Number of rounds Nr = NrTable[Nb][Nk]
@@ -399,10 +394,7 @@ def InvMixColumns(a):
 def mul(a, b):
     """ Multiply two elements of GF(2^m)
         needed for MixColumn and InvMixColumn """
-    if (a !=0 and  b!=0):
-        return Alogtable[(Logtable[a] + Logtable[b])%255]
-    else:
-        return 0
+    return Alogtable[(Logtable[a] + Logtable[b])%255] if (a !=0 and  b!=0) else 0
 
 Logtable = ( 0,   0,  25,   1,  50,   2,  26, 198,  75, 199,  27, 104,  51, 238, 223,   3,
            100,   4, 224,  14,  52, 141, 129, 239,  76, 113,   8, 200, 248, 105,  28, 193,
@@ -453,7 +445,7 @@ class AES(Rijndael):
     """
     def __init__(self, key = None, padding = padWithPadLen(), keySize=16):
         """ Initialize AES, keySize is in bytes """
-        if  not (keySize == 16 or keySize == 24 or keySize == 32) :
+        if keySize not in [16, 24, 32]:
             raise BadKeySizeError('Illegal AES key size, must be 16, 24, or 32 bytes')
 
         Rijndael.__init__( self, key, padding=padding, keySize=keySize, blockSize=16 )
@@ -477,13 +469,12 @@ class CBC(BlockCipher):
     def __init__(self, blockCipherInstance, padding = padWithPadLen()):
         """ CBC algorithms are created by initializing with a BlockCipher instance """
         self.baseCipher = blockCipherInstance
-        self.name       = self.baseCipher.name + '_CBC'
+        self.name = f'{self.baseCipher.name}_CBC'
         self.blockSize  = self.baseCipher.blockSize
         self.keySize    = self.baseCipher.keySize
         self.padding    = padding
         self.baseCipher.padding = noPadding()   # baseCipher should NOT pad!!
         self.r          = Random()            # for IV generation, currently uses
-                                              # mediocre standard distro version     <----------------
         import time
         newSeed = time.ctime()+str(self.r)    # seed with instance location
         self.r.seed(newSeed)                  # to make unique
@@ -508,7 +499,7 @@ class CBC(BlockCipher):
         if self.encryptBlockCount == 0:
             self.iv = iv
         else:
-            assert(iv==None), 'IV used only on first call to encrypt'
+            assert iv is None, 'IV used only on first call to encrypt'
 
         return BlockCipher.encrypt(self,plainText, more=more)
 
@@ -519,7 +510,7 @@ class CBC(BlockCipher):
         if self.decryptBlockCount == 0:
             self.iv = iv
         else:
-            assert(iv==None), 'IV used only on first call to decrypt'
+            assert iv is None, 'IV used only on first call to decrypt'
 
         return BlockCipher.decrypt(self, cipherText, more=more)
 
@@ -527,12 +518,12 @@ class CBC(BlockCipher):
         """ CBC block encryption, IV is set with 'encrypt' """
         auto_IV = ''
         if self.encryptBlockCount == 0:
-            if self.iv == None:
+            if self.iv is None:
                 # generate IV and use
-                self.iv = ''.join([chr(self.r.randrange(256)) for i in range(self.blockSize)])
+                self.iv = ''.join([chr(self.r.randrange(256)) for _ in range(self.blockSize)])
                 self.prior_encr_CT_block = self.iv
                 auto_IV = self.prior_encr_CT_block    # prepend IV if it's automatic
-            else:                       # application provided IV
+            else:
                 assert(len(self.iv) == self.blockSize ),'IV must be same length as block'
                 self.prior_encr_CT_block = self.iv
         """ encrypt the prior CT XORed with the PT """
@@ -543,8 +534,8 @@ class CBC(BlockCipher):
     def decryptBlock(self, encryptedBlock):
         """ Decrypt a single block """
 
-        if self.decryptBlockCount == 0:   # first call, process IV
-            if self.iv == None:    # auto decrypt IV?
+        if self.decryptBlockCount == 0:# auto decrypt IV?
+            if self.iv is None:
                 self.prior_CT_block = encryptedBlock
                 return ''
             else:

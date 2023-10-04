@@ -21,25 +21,22 @@ OBOK_README = 'obok_plugin_ReadMe.txt'
 RELEASE_DIR = 'release'
 
 def patch_file(filepath):
-    f = open(filepath, "rb")
-    fn = open(filepath + ".tmp", "wb")
-    patch = open(os.path.join(DEDRM_SRC_DIR, "__calibre_compat_code.py"), "rb")
-    patchdata = patch.read()
-    patch.close()
+    with open(filepath, "rb") as f:
+        fn = open(f"{filepath}.tmp", "wb")
+        with open(os.path.join(DEDRM_SRC_DIR, "__calibre_compat_code.py"), "rb") as patch:
+            patchdata = patch.read()
+        while True:
+            line = f.readline()
+            if len(line) == 0:
+                break
 
-    while True:
-        line = f.readline()
-        if len(line) == 0:
-            break
+            if line.strip().startswith(b"#@@CALIBRE_COMPAT_CODE@@"):
+                fn.write(patchdata)
+            else:
+                fn.write(line)
 
-        if line.strip().startswith(b"#@@CALIBRE_COMPAT_CODE@@"):
-            fn.write(patchdata)
-        else:
-            fn.write(line)
-
-    f.close()
     fn.close()
-    shutil.move(filepath + ".tmp", filepath)
+    shutil.move(f"{filepath}.tmp", filepath)
 
 
 
@@ -74,8 +71,8 @@ def make_release(version):
     # Package
     shutil.make_archive(DEDRM_SRC_DIR, 'zip', DEDRM_SRC_TMP_DIR)
     shutil.make_archive(OBOK_SRC_DIR, 'zip', OBOK_SRC_DIR)
-    shutil.move(DEDRM_SRC_DIR+'.zip', RELEASE_DIR)
-    shutil.move(OBOK_SRC_DIR+'.zip', RELEASE_DIR)
+    shutil.move(f'{DEDRM_SRC_DIR}.zip', RELEASE_DIR)
+    shutil.move(f'{OBOK_SRC_DIR}.zip', RELEASE_DIR)
     shutil.copy(DEDRM_README, RELEASE_DIR)
     shutil.copy(OBOK_README, RELEASE_DIR)
     shutil.copy("ReadMe_Overview.txt", RELEASE_DIR)
@@ -83,10 +80,7 @@ def make_release(version):
     # Remove temp folder:
     shutil.rmtree(DEDRM_SRC_TMP_DIR)
 
-    if version is not None:
-        release_name = 'DeDRM_tools_{}'.format(version)
-    else:
-        release_name = 'DeDRM_tools'
+    release_name = 'DeDRM_tools' if version is None else f'DeDRM_tools_{version}'
     result = shutil.make_archive(release_name, 'zip', RELEASE_DIR)
     try:
         shutil.rmtree(RELEASE_DIR)

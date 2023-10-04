@@ -109,7 +109,7 @@ def cleanup_name(name):
     # delete non-ascii characters
     name = "".join(char for char in name if ord(char)<=126)
     # remove leading dots
-    while len(name)>0 and name[0] == ".":
+    while name != "" and name[0] == ".":
         name = name[1:]
     # remove trailing dots (Windows doesn't like them)
     while name.endswith("."):
@@ -125,10 +125,7 @@ def unescape(text):
         if text[:2] == "&#":
             # character reference
             try:
-                if text[:3] == "&#x":
-                    return chr(int(text[3:-1], 16))
-                else:
-                    return chr(int(text[2:-1]))
+                return chr(int(text[3:-1], 16)) if text[:3] == "&#x" else chr(int(text[2:-1]))
             except ValueError:
                 pass
         else:
@@ -138,6 +135,7 @@ def unescape(text):
             except KeyError:
                 pass
         return text # leave as is
+
     return re.sub("&#?\\w+;", fixup, text)
 
 def GetDecryptedBook(infile, kDatabases, androidFiles, serials, pids, starttime = time.time()):
@@ -145,15 +143,12 @@ def GetDecryptedBook(infile, kDatabases, androidFiles, serials, pids, starttime 
     if not os.path.isfile(infile):
         raise DrmException("Input file does not exist.")
 
-    mobi = True
     magic8 = open(infile,'rb').read(8)
     if magic8 == b'\xeaDRMION\xee':
         raise DrmException("The .kfx DRMION file cannot be decrypted by itself. A .kfx-zip archive containing a DRM voucher is required.")
 
     magic3 = magic8[:3]
-    if magic3 == b'TPZ':
-        mobi = False
-
+    mobi = magic3 != b'TPZ'
     if magic8[:4] == b'PK\x03\x04':
         mb = kfxdedrm.KFXZipBook(infile)
     elif mobi:
@@ -220,22 +215,22 @@ def decryptBook(infile, outdir, kDatabaseFiles, androidFiles, serials, pids):
         re.match('^[0-9A-F-]{36}$', orig_fn_root)
     ):  # Kindle for PC / Mac / Android / Fire / iOS
         clean_title = cleanup_name(book.getBookTitle())
-        outfilename = "{}_{}".format(orig_fn_root, clean_title)
+        outfilename = f"{orig_fn_root}_{clean_title}"
     else:  # E Ink Kindle, which already uses a reasonable name
         outfilename = orig_fn_root
 
     # avoid excessively long file names
     if len(outfilename)>150:
-        outfilename = outfilename[:99]+"--"+outfilename[-49:]
+        outfilename = f"{outfilename[:99]}--{outfilename[-49:]}"
 
-    outfilename = outfilename+"_nodrm"
+    outfilename = f"{outfilename}_nodrm"
     outfile = os.path.join(outdir, outfilename + book.getBookExtension())
 
     book.getFile(outfile)
     print("Saved decrypted book {1:s} after {0:.1f} seconds".format(time.time()-starttime, outfilename))
 
     if book.getBookType()=="Topaz":
-        zipname = os.path.join(outdir, outfilename + "_SVG.zip")
+        zipname = os.path.join(outdir, f"{outfilename}_SVG.zip")
         book.getSVGZip(zipname)
         print("Saved SVG ZIP Archive for {1:s} after {0:.1f} seconds".format(time.time()-starttime, outfilename))
 
@@ -279,19 +274,19 @@ def cli_main():
             usage(progname)
             sys.exit(0)
         if o == "-k":
-            if a == None :
+            if a is None:
                 raise DrmException("Invalid parameter for -k")
             kDatabaseFiles.append(a)
         if o == "-p":
-            if a == None :
+            if a is None:
                 raise DrmException("Invalid parameter for -p")
             pids = a.encode('utf-8').split(b',')
         if o == "-s":
-            if a == None :
+            if a is None:
                 raise DrmException("Invalid parameter for -s")
             serials = a.split(',')
         if o == '-a':
-            if a == None:
+            if a is None:
                 raise DrmException("Invalid parameter for -a")
             androidFiles.append(a)
 

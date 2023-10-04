@@ -28,11 +28,7 @@ except ImportError:
 
 
 def unpad(data, padding=16):
-    if sys.version_info[0] == 2:
-        pad_len = ord(data[-1])
-    else:
-        pad_len = data[-1]
-
+    pad_len = ord(data[-1]) if sys.version_info[0] == 2 else data[-1]
     return data[:-pad_len]
 
 PASS_HASH_SECRET = "9ca588496a1bc4394553d9e018d70b9e"
@@ -90,7 +86,7 @@ if iswindows:
             except:
                 # No more keys
                 break
-                
+
             ktype = winreg.QueryValueEx(plkparent, None)[0]
 
             if ktype == "activationToken":
@@ -112,7 +108,7 @@ if iswindows:
 
             # Note: There can be multiple lists, with multiple entries each.
             if ktype == 'passHashList':
-            
+
                 # Find operator (used in key name)
                 j = -1
                 lastOperator = "Unknown"
@@ -131,8 +127,8 @@ if iswindows:
                             lastOperator = operatorURL.split('//')[1].split('/')[0]
                         except:
                             pass
-                
-                
+
+
                 # Find hashes
                 j = -1
                 while True:
@@ -147,7 +143,7 @@ if iswindows:
 
                     if ktype == "passHash":
                         passhash_encrypted = winreg.QueryValueEx(plkkey, 'value')[0]
-                        names.append("ADE_key_" + lastOperator + "_" + str(int(time.time())) + "_" + str(idx))
+                        names.append(f"ADE_key_{lastOperator}_{int(time.time())}_{str(idx)}")
                         idx = idx + 1
                         keys.append(passhash_encrypted)
 
@@ -171,8 +167,6 @@ if iswindows:
 else:
     def passhash_keys():
         raise ADEPTError("This script only supports Windows.")
-        #TODO: Add MacOS support by parsing the activation.xml file.
-        return [], []
 
 
 if __name__ == '__main__':

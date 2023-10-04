@@ -215,7 +215,7 @@ def split_multi_sz(data, size):
         while P < Q and data[P].value != u'\0':
             P += 1
         P += 1
-    rv.append(size)
+    rv.append(Q)
     return [ctypes.wstring_at(ctypes.pointer(data[rv[i]]),
                               rv[i+1] - rv[i]).rstrip(u'\x00')
             for i in range(len(rv)-1)]
@@ -225,14 +225,12 @@ def Reg2Py(data, size, typ):
         if size == 0:
             return 0
         return ctypes.cast(data, ctypes.POINTER(ctypes.c_int)).contents.value
-    elif typ == REG_SZ or typ == REG_EXPAND_SZ:
+    elif typ in [REG_SZ, REG_EXPAND_SZ]:
         return ctypes.wstring_at(data, size // 2).rstrip(u'\x00')
     elif typ == REG_MULTI_SZ:
         return split_multi_sz(ctypes.cast(data, ctypes.c_wchar_p), size // 2)
     else:
-        if size == 0:
-            return None
-        return ctypes.string_at(data, size)
+        return None if size == 0 else ctypes.string_at(data, size)
 
 def EnumKey(key, index):
     tmpbuf = ctypes.create_unicode_buffer(257)

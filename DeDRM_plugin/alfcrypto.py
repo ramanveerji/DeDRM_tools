@@ -42,11 +42,7 @@ class Pukall_Cipher(object):
                 temp1 = (temp1*20021+1)&0xFFFF
                 byteXorVal ^= temp1 ^ sum2
 
-            if sys.version_info[0] == 2:
-                curByte = ord(src[i])
-            else:
-                curByte = src[i]
-
+            curByte = ord(src[i]) if sys.version_info[0] == 2 else src[i]
             if not decryption:
                 keyXorVal = curByte * 257;
             curByte = ((curByte ^ (byteXorVal >> 8)) ^ byteXorVal) & 0xFF
@@ -54,12 +50,8 @@ class Pukall_Cipher(object):
                 keyXorVal = curByte * 257;
             for j in range(8):
                 wkey[j] ^= keyXorVal;
-            
-            if sys.version_info[0] == 2:
-                dst[i] = chr(curByte)
-            else: 
-                dst[i] = curByte
-                
+
+            dst[i] = chr(curByte) if sys.version_info[0] == 2 else curByte
         return bytes(dst)
 
 class Topaz_Cipher(object):
@@ -77,7 +69,7 @@ class Topaz_Cipher(object):
         return [ctx1,ctx2]
 
     def decrypt(self, data,  ctx=None):
-        if ctx == None:
+        if ctx is None:
             ctx = self._ctx
         ctx1 = ctx[0]
         ctx2 = ctx[1]
@@ -104,8 +96,7 @@ class AES_CBC(object):
 
     def decrypt(self, data):
         iv = self._iv
-        cleartext = self.aes.decrypt(iv + data)
-        return cleartext
+        return self.aes.decrypt(iv + data)
 
 
 class KeyIVGen(object):
@@ -142,6 +133,6 @@ class KeyIVGen(object):
         T = b""
         for i in range(1, l+1):
             T += pbkdf2_F( h, salt, iter, i )
-        return T[0: keylen]
+        return T[:keylen]
 
 

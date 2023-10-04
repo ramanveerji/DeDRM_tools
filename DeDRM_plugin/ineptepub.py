@@ -63,11 +63,7 @@ except ImportError:
 
 
 def unpad(data, padding=16):
-    if sys.version_info[0] == 2:
-        pad_len = ord(data[-1])
-    else:
-        pad_len = data[-1]
-
+    pad_len = ord(data[-1]) if sys.version_info[0] == 2 else data[-1]
     return data[:-pad_len]
 
 #@@CALIBRE_COMPAT_CODE@@
@@ -97,11 +93,15 @@ class Decryptor(object):
 
         self._json_elements_to_remove = json_elements_to_remove = set()
         self._has_remaining_xml = False
-        expr = './%s/%s/%s' % (enc('EncryptedData'), enc('CipherData'),
-                               enc('CipherReference'))
+        expr = f"./{enc('EncryptedData')}/{enc('CipherData')}/{enc('CipherReference')}"
         for elem in self._encryption.findall(expr):
             path = elem.get('URI', None)
-            encryption_type_url = (elem.getparent().getparent().find("./%s" % (enc('EncryptionMethod'))).get('Algorithm', None))
+            encryption_type_url = (
+                elem.getparent()
+                .getparent()
+                .find(f"./{enc('EncryptionMethod')}")
+                .get('Algorithm', None)
+            )
             if path is not None:
                 if (encryption_type_url == "http://www.w3.org/2001/04/xmlenc#aes128-cbc"):
                     # Adobe
@@ -132,8 +132,7 @@ class Decryptor(object):
         dc = zlib.decompressobj(-15)
         try:
             decompressed_bytes = dc.decompress(bytes)
-            ex = dc.decompress(b'Z') + dc.flush()
-            if ex:
+            if ex := dc.decompress(b'Z') + dc.flush():
                 decompressed_bytes = decompressed_bytes + ex
         except:
             # possibly not compressed by zip - just return bytes
@@ -143,12 +142,9 @@ class Decryptor(object):
     def decrypt(self, path, data):
         if path.encode('utf-8') in self._encrypted or path.encode('utf-8') in self._encryptedForceNoDecomp:
             data = self._aes.decrypt(data)[16:]
-            if type(data[-1]) != int:
-                place = ord(data[-1])
-            else:
-                place = data[-1]
+            place = ord(data[-1]) if type(data[-1]) != int else data[-1]
             data = data[:-place]
-            if not path.encode('utf-8') in self._encryptedForceNoDecomp:
+            if path.encode('utf-8') not in self._encryptedForceNoDecomp:
                 data = self.decompress(data)
         return data
 
@@ -162,9 +158,9 @@ def adeptBook(inpath):
         try:
             rights = etree.fromstring(inf.read('META-INF/rights.xml'))
             adept = lambda tag: '{%s}%s' % (NSMAP['adept'], tag)
-            expr = './/%s' % (adept('encryptedKey'),)
+            expr = f".//{adept('encryptedKey')}"
             bookkey = ''.join(rights.findtext(expr))
-            if len(bookkey) in [192, 172, 64]:
+            if len(bookkey) in {192, 172, 64}:
                 return True
         except:
             # if we couldn't check, assume it is
@@ -181,7 +177,7 @@ def isPassHashBook(inpath):
         try:
             rights = etree.fromstring(inf.read('META-INF/rights.xml'))
             adept = lambda tag: '{%s}%s' % (NSMAP['adept'], tag)
-            expr = './/%s' % (adept('encryptedKey'),)
+            expr = f".//{adept('encryptedKey')}"
             bookkey = ''.join(rights.findtext(expr))
             if len(bookkey) == 64:
                 return True
@@ -198,17 +194,15 @@ def adeptGetUserUUID(inpath):
         try:
             rights = etree.fromstring(inf.read('META-INF/rights.xml'))
             adept = lambda tag: '{%s}%s' % (NSMAP['adept'], tag)
-            expr = './/%s' % (adept('user'),)
+            expr = f".//{adept('user')}"
             user_uuid = ''.join(rights.findtext(expr))
-            if user_uuid[:9] != "urn:uuid:":
-                return None
-            return user_uuid[9:]
+            return None if user_uuid[:9] != "urn:uuid:" else user_uuid[9:]
         except:
             return None
 
 def removeHardening(rights, keytype, keydata):
     adept = lambda tag: '{%s}%s' % (NSMAP['adept'], tag)
-    textGetter = lambda name: ''.join(rights.findtext('.//%s' % (adept(name),)))
+    textGetter = lambda name: ''.join(rights.findtext(f'.//{adept(name)}'))
 
     # Gather what we need, and generate the IV
     resourceuuid = UUID(textGetter("resource"))
@@ -235,7 +229,7 @@ def decryptBook(userkey, inpath, outpath):
         try:
             rights = etree.fromstring(inf.read('META-INF/rights.xml'))
             adept = lambda tag: '{%s}%s' % (NSMAP['adept'], tag)
-            expr = './/%s' % (adept('encryptedKey'),)
+            expr = f".//{adept('encryptedKey')}"
             bookkeyelem = rights.find(expr)
             bookkey = bookkeyelem.text
             keytype = bookkeyelem.attrib.get('keyType', '0')
@@ -286,15 +280,12 @@ def decryptBook(userkey, inpath, outpath):
                         zi.compress_type = ZIP_STORED
 
                     elif path == "META-INF/encryption.xml":
-                        # Check if there's still something in there
-                        if (decryptor.check_if_remaining()):
-                            data = decryptor.get_xml()
-                            print("Adding encryption.xml for the remaining embedded files.")
-                            # We removed DRM, but there's still stuff like obfuscated fonts.
-                        else:
+                        if not (decryptor.check_if_remaining()):
                             continue
 
 
+                        data = decryptor.get_xml()
+                        print("Adding encryption.xml for the remaining embedded files.")
                     try:
                         # get the file info, including time-stamp
                         oldzi = inf.getinfo(path)
@@ -357,6 +348,8 @@ def gui_main():
     except:
         return cli_main()
 
+
+
     class DecryptionDialog(tkinter.Frame):
         def __init__(self, root):
             tkinter.Frame.__init__(self, root, border=5)
@@ -394,32 +387,39 @@ def gui_main():
             button.pack(side=tkinter.constants.RIGHT)
 
         def get_keypath(self):
-            keypath = tkinter.filedialog.askopenfilename(
-                parent=None, title="Select Adobe Adept \'.der\' key file",
+            if keypath := tkinter.filedialog.askopenfilename(
+                parent=None,
+                title="Select Adobe Adept \'.der\' key file",
                 defaultextension=".der",
-                filetypes=[('Adobe Adept DER-encoded files', '.der'),
-                           ('All Files', '.*')])
-            if keypath:
+                filetypes=[
+                    ('Adobe Adept DER-encoded files', '.der'),
+                    ('All Files', '.*'),
+                ],
+            ):
                 keypath = os.path.normpath(keypath)
                 self.keypath.delete(0, tkinter.constants.END)
                 self.keypath.insert(0, keypath)
             return
 
         def get_inpath(self):
-            inpath = tkinter.filedialog.askopenfilename(
-                parent=None, title="Select ADEPT-encrypted ePub file to decrypt",
-                defaultextension=".epub", filetypes=[('ePub files', '.epub')])
-            if inpath:
+            if inpath := tkinter.filedialog.askopenfilename(
+                parent=None,
+                title="Select ADEPT-encrypted ePub file to decrypt",
+                defaultextension=".epub",
+                filetypes=[('ePub files', '.epub')],
+            ):
                 inpath = os.path.normpath(inpath)
                 self.inpath.delete(0, tkinter.constants.END)
                 self.inpath.insert(0, inpath)
             return
 
         def get_outpath(self):
-            outpath = tkinter.filedialog.asksaveasfilename(
-                parent=None, title="Select unencrypted ePub file to produce",
-                defaultextension=".epub", filetypes=[('ePub files', '.epub')])
-            if outpath:
+            if outpath := tkinter.filedialog.asksaveasfilename(
+                parent=None,
+                title="Select unencrypted ePub file to produce",
+                defaultextension=".epub",
+                filetypes=[('ePub files', '.epub')],
+            ):
                 outpath = os.path.normpath(outpath)
                 self.outpath.delete(0, tkinter.constants.END)
                 self.outpath.insert(0, outpath)
@@ -452,6 +452,7 @@ def gui_main():
                 self.status['text'] = "File successfully decrypted"
             else:
                 self.status['text'] = "There was an error decrypting the file."
+
 
     root = tkinter.Tk()
     root.title("Adobe Adept ePub Decrypter v.{0}".format(__version__))

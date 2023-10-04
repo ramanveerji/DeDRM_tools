@@ -66,12 +66,9 @@ class PParser(object):
         return name, argres
 
     # find tag in doc if within pos to end inclusive
-    def findinDoc(self, tagpath, pos, end) :
+    def findinDoc(self, tagpath, pos, end):
         result = None
-        if end == -1 :
-            end = self.docSize
-        else:
-            end = min(self.docSize, end)
+        end = self.docSize if end == -1 else min(self.docSize, end)
         foundat = -1
         for j in range(pos, end):
             item = self.flatdoc[j]
@@ -120,7 +117,6 @@ class PParser(object):
         return result
 
     def getDataatPos(self, path, pos):
-        result = None
         item = self.flatdoc[pos]
         if item.find(b'=') >= 0:
             (name, argt) = item.split(b'=')
@@ -133,9 +129,7 @@ class PParser(object):
                 argres[j] = int(argres[j])
         if (isinstance(path,str)):
             path = path.encode('utf-8')
-        if (name.endswith(path)):
-            result = argres
-        return result
+        return argres if (name.endswith(path)) else None
 
     def getDataTemp(self, path):
         result = None
@@ -174,50 +168,60 @@ class PParser(object):
     def getGlyphs(self):
         result = []
         if (self.gid != None) and (len(self.gid) > 0):
-            glyphs = []
-            for j in set(self.gid):
-                glyphs.append(j)
-            glyphs.sort()
+            glyphs = sorted(set(self.gid))
             for gid in glyphs:
                 id='id="gl%d"' % gid
-                path = self.gd.lookup(id)
-                if path:
-                    result.append(id + ' ' + path)
+                if path := self.gd.lookup(id):
+                    result.append(f'{id} {path}')
         return result
 
 
 def convert2SVG(gdict, flat_xml, pageid, previd, nextid, svgDir, raw, meta_array, scaledpi):
-    mlst = []
     pp = PParser(gdict, flat_xml, meta_array)
-    mlst.append('<?xml version="1.0" standalone="no"?>\n')
-    if (raw):
-        mlst.append('<!DOCTYPE svg PUBLIC "-//W3C/DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n')
-        mlst.append('<svg width="%fin" height="%fin" viewBox="0 0 %d %d" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">\n' % (pp.pw / scaledpi, pp.ph / scaledpi, pp.pw -1, pp.ph -1))
-        mlst.append('<title>Page %d - %s by %s</title>\n' % (pageid, meta_array['Title'],meta_array['Authors']))
+    mlst = ['<?xml version="1.0" standalone="no"?>\n']
+    if raw:
+        mlst.extend(
+            (
+                '<!DOCTYPE svg PUBLIC "-//W3C/DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n',
+                '<svg width="%fin" height="%fin" viewBox="0 0 %d %d" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">\n'
+                % (pp.pw / scaledpi, pp.ph / scaledpi, pp.pw - 1, pp.ph - 1),
+                '<title>Page %d - %s by %s</title>\n'
+                % (pageid, meta_array['Title'], meta_array['Authors']),
+            )
+        )
     else:
-        mlst.append('<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">\n')
-        mlst.append('<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" ><head>\n')
-        mlst.append('<title>Page %d - %s by %s</title>\n' % (pageid, meta_array['Title'],meta_array['Authors']))
-        mlst.append('<script><![CDATA[\n')
-        mlst.append('function gd(){var p=window.location.href.replace(/^.*\?dpi=(\d+).*$/i,"$1");return p;}\n')
-        mlst.append('var dpi=%d;\n' % scaledpi)
+        mlst.extend(
+            (
+                '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">\n',
+                '<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" ><head>\n',
+                '<title>Page %d - %s by %s</title>\n'
+                % (pageid, meta_array['Title'], meta_array['Authors']),
+                '<script><![CDATA[\n',
+                'function gd(){var p=window.location.href.replace(/^.*\?dpi=(\d+).*$/i,"$1");return p;}\n',
+                'var dpi=%d;\n' % scaledpi,
+            )
+        )
         if (previd) :
             mlst.append('var prevpage="page%04d.xhtml";\n' % (previd))
         if (nextid) :
             mlst.append('var nextpage="page%04d.xhtml";\n' % (nextid))
-        mlst.append('var pw=%d;var ph=%d;' % (pp.pw, pp.ph))
-        mlst.append('function zoomin(){dpi=dpi*(0.8);setsize();}\n')
-        mlst.append('function zoomout(){dpi=dpi*1.25;setsize();}\n')
-        mlst.append('function setsize(){var svg=document.getElementById("svgimg");var prev=document.getElementById("prevsvg");var next=document.getElementById("nextsvg");var width=(pw/dpi)+"in";var height=(ph/dpi)+"in";svg.setAttribute("width",width);svg.setAttribute("height",height);prev.setAttribute("height",height);prev.setAttribute("width","50px");next.setAttribute("height",height);next.setAttribute("width","50px");}\n')
-        mlst.append('function ppage(){window.location.href=prevpage+"?dpi="+Math.round(dpi);}\n')
-        mlst.append('function npage(){window.location.href=nextpage+"?dpi="+Math.round(dpi);}\n')
-        mlst.append('var gt=gd();if(gt>0){dpi=gt;}\n')
-        mlst.append('window.onload=setsize;\n')
-        mlst.append(']]></script>\n')
-        mlst.append('</head>\n')
-        mlst.append('<body onLoad="setsize();" style="background-color:#777;text-align:center;">\n')
-        mlst.append('<div style="white-space:nowrap;">\n')
-        if previd == None:
+        mlst.extend(
+            (
+                'var pw=%d;var ph=%d;' % (pp.pw, pp.ph),
+                'function zoomin(){dpi=dpi*(0.8);setsize();}\n',
+                'function zoomout(){dpi=dpi*1.25;setsize();}\n',
+                'function setsize(){var svg=document.getElementById("svgimg");var prev=document.getElementById("prevsvg");var next=document.getElementById("nextsvg");var width=(pw/dpi)+"in";var height=(ph/dpi)+"in";svg.setAttribute("width",width);svg.setAttribute("height",height);prev.setAttribute("height",height);prev.setAttribute("width","50px");next.setAttribute("height",height);next.setAttribute("width","50px");}\n',
+                'function ppage(){window.location.href=prevpage+"?dpi="+Math.round(dpi);}\n',
+                'function npage(){window.location.href=nextpage+"?dpi="+Math.round(dpi);}\n',
+                'var gt=gd();if(gt>0){dpi=gt;}\n',
+                'window.onload=setsize;\n',
+                ']]></script>\n',
+                '</head>\n',
+                '<body onLoad="setsize();" style="background-color:#777;text-align:center;">\n',
+                '<div style="white-space:nowrap;">\n',
+            )
+        )
+        if previd is None:
             mlst.append('<a href="javascript:ppage();"><svg id="prevsvg" viewBox="0 0 100 300" xmlns="http://www.w3.org/2000/svg" version="1.1" style="background-color:#777"></svg></a>\n')
         else:
             mlst.append('<a href="javascript:ppage();"><svg id="prevsvg" viewBox="0 0 100 300" xmlns="http://www.w3.org/2000/svg" version="1.1" style="background-color:#777"><polygon points="5,150,95,5,95,295" fill="#AAAAAA" /></svg></a>\n')
@@ -226,30 +230,39 @@ def convert2SVG(gdict, flat_xml, pageid, previd, nextid, svgDir, raw, meta_array
     if (pp.gid != None):
         mlst.append('<defs>\n')
         gdefs = pp.getGlyphs()
-        for j in range(0,len(gdefs)):
-            mlst.append(gdefs[j])
+        mlst.extend(gdefs[j] for j in range(0,len(gdefs)))
         mlst.append('</defs>\n')
     img = pp.getImages()
     if (img != None):
-        for j in range(0,len(img)):
-            mlst.append(img[j])
+        mlst.extend(img[j] for j in range(0,len(img)))
     if (pp.gid != None):
-        for j in range(0,len(pp.gid)):
-            mlst.append('<use xlink:href="#gl%d" x="%d" y="%d" />\n' % (pp.gid[j], pp.gx[j], pp.gy[j]))
-    if (img == None or len(img) == 0) and (pp.gid == None or len(pp.gid) == 0):
+        mlst.extend(
+            '<use xlink:href="#gl%d" x="%d" y="%d" />\n'
+            % (pp.gid[j], pp.gx[j], pp.gy[j])
+            for j in range(0, len(pp.gid))
+        )
+    if (img is None or len(img) == 0) and (pp.gid is None or len(pp.gid) == 0):
         xpos = "%d" % (pp.pw // 3)
         ypos = "%d" % (pp.ph // 3)
-        mlst.append('<text x="' + xpos + '" y="' + ypos + '" font-size="' + meta_array['fontSize'] + '" font-family="Helvetica" stroke="black">This page intentionally left blank.</text>\n')
-    if (raw) :
+        mlst.append(
+            f'<text x="{xpos}" y="{ypos}" font-size="'
+            + meta_array['fontSize']
+            + '" font-family="Helvetica" stroke="black">This page intentionally left blank.</text>\n'
+        )
+    if raw:
         mlst.append('</svg>')
-    else :
+    else:
         mlst.append('</svg></a>\n')
-        if nextid == None:
+        if nextid is None:
             mlst.append('<a href="javascript:npage();"><svg id="nextsvg" viewBox="0 0 100 300" xmlns="http://www.w3.org/2000/svg" version="1.1" style="background-color:#777"></svg></a>\n')
-        else :
+        else:
             mlst.append('<a href="javascript:npage();"><svg id="nextsvg" viewBox="0 0 100 300" xmlns="http://www.w3.org/2000/svg" version="1.1" style="background-color:#777"><polygon points="5,5,5,295,95,150" fill="#AAAAAA" /></svg></a>\n')
-        mlst.append('</div>\n')
-        mlst.append('<div><a href="javascript:zoomin();">zoom in</a> - <a href="javascript:zoomout();">zoom out</a></div>\n')
-        mlst.append('</body>\n')
-        mlst.append('</html>\n')
+        mlst.extend(
+            (
+                '</div>\n',
+                '<div><a href="javascript:zoomin();">zoom in</a> - <a href="javascript:zoomout();">zoom out</a></div>\n',
+                '</body>\n',
+                '</html>\n',
+            )
+        )
     return "".join(mlst)
