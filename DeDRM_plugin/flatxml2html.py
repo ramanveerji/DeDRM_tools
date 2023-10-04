@@ -78,13 +78,9 @@ class DocParser(object):
             gids.append(gid)
 
             xs.append(gxList[j])
-            if minx == -1: minx = gxList[j]
-            else : minx = min(minx, gxList[j])
-
+            minx = gxList[j] if minx == -1 else min(minx, gxList[j])
             ys.append(gyList[j])
-            if miny == -1: miny = gyList[j]
-            else : miny = min(miny, gyList[j])
-
+            miny = gyList[j] if miny == -1 else min(miny, gyList[j])
             path = self.getGlyph(gid)
             gdefs.append(path)
 
@@ -101,20 +97,17 @@ class DocParser(object):
             maxw = max( maxw, (maxws[j] + xs[j]) )
             maxh = max( maxh, (maxhs[j] + ys[j]) )
 
-        # open the image file for output
-        ifile = open(imgfile,'w')
-        ifile.write('<?xml version="1.0" standalone="no"?>\n')
-        ifile.write('<!DOCTYPE svg PUBLIC "-//W3C/DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n')
-        ifile.write('<svg width="%dpx" height="%dpx" viewBox="0 0 %d %d" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">\n' % (math.floor(maxw/10), math.floor(maxh/10), maxw, maxh))
-        ifile.write('<defs>\n')
-        for j in range(0,len(gdefs)):
-            ifile.write(gdefs[j])
-        ifile.write('</defs>\n')
-        for j in range(0,len(gids)):
-            ifile.write('<use xlink:href="#gl%d" x="%d" y="%d" />\n' % (gids[j], xs[j], ys[j]))
-        ifile.write('</svg>')
-        ifile.close()
-
+        with open(imgfile,'w') as ifile:
+            ifile.write('<?xml version="1.0" standalone="no"?>\n')
+            ifile.write('<!DOCTYPE svg PUBLIC "-//W3C/DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">\n')
+            ifile.write('<svg width="%dpx" height="%dpx" viewBox="0 0 %d %d" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">\n' % (math.floor(maxw/10), math.floor(maxh/10), maxw, maxh))
+            ifile.write('<defs>\n')
+            for j in range(0,len(gdefs)):
+                ifile.write(gdefs[j])
+            ifile.write('</defs>\n')
+            for j in range(0,len(gids)):
+                ifile.write('<use xlink:href="#gl%d" x="%d" y="%d" />\n' % (gids[j], xs[j], ys[j]))
+            ifile.write('</svg>')
         return 0
 
 
@@ -132,12 +125,9 @@ class DocParser(object):
 
 
     # find tag in doc if within pos to end inclusive
-    def findinDoc(self, tagpath, pos, end) :
+    def findinDoc(self, tagpath, pos, end):
         result = None
-        if end == -1 :
-            end = self.docSize
-        else:
-            end = min(self.docSize, end)
+        end = self.docSize if end == -1 else min(self.docSize, end)
         foundat = -1
         for j in range(pos, end):
             item = self.docList[j]
@@ -193,20 +183,20 @@ class DocParser(object):
         # after
 
         # also some class names have spaces in them so need to convert to dashes
-        if nclass != None :
+        if nclass != None:
             nclass = nclass.replace(b' ',b'-')
             classres = b''
             nclass = nclass.lower()
             nclass = b'cl-' + nclass
             baseclass = b''
             # graphic is the base class for captions
-            if nclass.find(b'cl-cap-') >=0 :
+            if nclass.find(b'cl-cap-') >=0:
                 classres = b'graphic' + b' '
-            else :
+            else:
                 # strip to find baseclass
                 p = nclass.find(b'_')
-                if p > 0 :
-                    baseclass = nclass[0:p]
+                if p > 0:
+                    baseclass = nclass[:p]
                     if baseclass in self.classList:
                         classres += baseclass + b' '
             classres += nclass
@@ -223,9 +213,7 @@ class DocParser(object):
             (ytype, yval) = y
             if xval > yval:
                 return 1
-            if xval == yval:
-                return 0
-            return -1
+            return 0 if xval == yval else -1
 
         result = []
         (pos, pagetype) = self.findinDoc(b'page.type',0,-1)
@@ -281,11 +269,11 @@ class DocParser(object):
         # first check for the  basic - all words paragraph
         (pos, sfirst) = self.findinDoc(b'paragraph.firstWord',start,end)
         (pos, slast) = self.findinDoc(b'paragraph.lastWord',start,end)
-        if (sfirst != None) and (slast != None) :
+        if (sfirst != None) and (slast != None):
             first = int(sfirst)
             last = int(slast)
 
-            makeImage = (regtype == b'vertical') or (regtype == b'table')
+            makeImage = regtype in [b'vertical', b'table']
             makeImage = makeImage or (extraglyphs != None)
             if self.fixedimage:
                 makeImage = makeImage or (regtype == b'fixed')
@@ -300,16 +288,11 @@ class DocParser(object):
 
             makeImage = makeImage & (len(gidList) > 0)
 
-            if not makeImage :
+            if not makeImage:
                 # standard all word paragraph
-                for wordnum in range(first, last):
-                    result.append(('ocr', wordnum))
+                result.extend(('ocr', wordnum) for wordnum in range(first, last))
                 return pclass, result
 
-            # convert paragraph to svg image
-            # translate first and last word into first and last glyphs
-            # and generate inline image and include it
-            glyphList = []
             firstglyphList = self.getData(b'word.firstGlyph',0,-1)
             gidList = self.getData(b'info.glyph.glyphID',0,-1)
             firstGlyph = firstglyphList[first]
@@ -322,12 +305,10 @@ class DocParser(object):
             # by reverting to text based paragraph
             if firstGlyph >= lastGlyph:
                 # revert to standard text based paragraph
-                for wordnum in range(first, last):
-                    result.append(('ocr', wordnum))
+                result.extend(('ocr', wordnum) for wordnum in range(first, last))
                 return pclass, result
 
-            for glyphnum in range(firstGlyph, lastGlyph):
-                glyphList.append(glyphnum)
+            glyphList = list(range(firstGlyph, lastGlyph))
             # include any extratokens if they exist
             (pos, sfg) = self.findinDoc(b'extratokens.firstGlyph',start,end)
             (pos, slg) = self.findinDoc(b'extratokens.lastGlyph',start,end)
@@ -367,11 +348,11 @@ class DocParser(object):
 
         word_semantic_type = ''
 
-        while (line < end) :
+        while (line < end):
 
             (name, argres) = self.lineinDoc(line)
 
-            if name.endswith(b'span.firstWord') :
+            if name.endswith(b'span.firstWord'):
                 sp_first = int(argres)
 
             elif name.endswith(b'span.lastWord') :
@@ -400,11 +381,11 @@ class DocParser(object):
                     pass
 
             elif name.endswith(b'word.img.src'):
-                result.append(('img' + word_class, int(argres)))
+                result.append((f'img{word_class}', int(argres)))
                 word_class = ''
 
             elif name.endswith(b'region.img.src'):
-                result.append(('img' + word_class, int(argres)))
+                result.append((f'img{word_class}', int(argres)))
 
             if (sp_first != -1) and (sp_last != -1):
                 for wordnum in range(sp_first, sp_last):
@@ -413,9 +394,7 @@ class DocParser(object):
                 sp_last = -1
 
             if (gl_first != -1) and (gl_last != -1):
-                glyphList = []
-                for glyphnum in range(gl_first, gl_last):
-                    glyphList.append(glyphnum)
+                glyphList = list(range(gl_first, gl_last))
                 num = self.svgcount
                 self.glyphs_to_image(glyphList)
                 self.svgcount += 1

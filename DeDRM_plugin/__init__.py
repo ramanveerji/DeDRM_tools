@@ -208,8 +208,6 @@ class DeDRM(FileTypePlugin):
                     except:
                         print("{0} v{1}: Exception when copying needed python scripts".format(PLUGIN_NAME, PLUGIN_VERSION))
                         traceback.print_exc()
-                        pass
-
                 # mark that this version has been initialized
                 os.mkdir(self.verdir)
         except Exception as e:
@@ -307,7 +305,7 @@ class DeDRM(FileTypePlugin):
                 raise
 
             return self.postProcessEPUB(retval)
-        
+
 
         # Not an LCP book, do the normal EPUB (Adobe) handling.
 
@@ -365,7 +363,7 @@ class DeDRM(FileTypePlugin):
                 except:
                     print("{0} v{1}: Exception when getting default NOOK Study Key after {2:.1f} seconds".format(PLUGIN_NAME, PLUGIN_VERSION, time.time()-self.starttime))
                     traceback.print_exc()
-                
+
 
                 ###### Add keys from the NOOK Microsoft Store application (ignoblekeyNookStudy.py)
 
@@ -416,7 +414,7 @@ class DeDRM(FileTypePlugin):
                         if keyvalue not in dedrmprefs['bandnkeys'].values() and keyvalue not in newkeys:
                             newkeys.append(keyvalue)
 
-                if len(newkeys) > 0:
+                if newkeys:
                     try:
                         for i,userkey in enumerate(newkeys):
 
@@ -444,9 +442,17 @@ class DeDRM(FileTypePlugin):
                                 print("{0} v{1}: Saving a new default key".format(PLUGIN_NAME, PLUGIN_VERSION))
                                 try:
                                     if userkey in defaultkeys_ade:
-                                        dedrmprefs.addnamedvaluetoprefs('bandnkeys','ade_passhash_'+str(int(time.time())),keyvalue)
+                                        dedrmprefs.addnamedvaluetoprefs(
+                                            'bandnkeys',
+                                            f'ade_passhash_{int(time.time())}',
+                                            keyvalue,
+                                        )
                                     else:
-                                        dedrmprefs.addnamedvaluetoprefs('bandnkeys','nook_key_'+str(int(time.time())),keyvalue)
+                                        dedrmprefs.addnamedvaluetoprefs(
+                                            'bandnkeys',
+                                            f'nook_key_{int(time.time())}',
+                                            keyvalue,
+                                        )
                                     dedrmprefs.writeprefs()
                                     print("{0} v{1}: Saved a new default key after {2:.1f} seconds".format(PLUGIN_NAME, PLUGIN_VERSION,time.time()-self.starttime))
                                 except:
@@ -457,7 +463,7 @@ class DeDRM(FileTypePlugin):
 
                             print("{0} v{1}: Failed to decrypt with new default key after {2:.1f} seconds".format(PLUGIN_NAME, PLUGIN_VERSION,time.time()-self.starttime))
                             return inf.name
-                    
+
                     except:
                         pass
 
@@ -483,9 +489,9 @@ class DeDRM(FileTypePlugin):
 
 
                 if book_uuid is not None: 
-                    # Check if we have a key with that UUID in its name: 
+                    # Check if we have a key with that UUID in its name:
                     for keyname, userkeyhex in dedrmprefs['adeptkeys'].items():
-                        if not book_uuid.lower() in keyname.lower(): 
+                        if book_uuid.lower() not in keyname.lower(): 
                             continue
 
                         # Found matching key
@@ -509,7 +515,7 @@ class DeDRM(FileTypePlugin):
 
                 # Attempt to decrypt epub with each encryption key (generated or provided).
                 for keyname, userkeyhex in dedrmprefs['adeptkeys'].items():
-                    
+
                     print("{0} v{1}: Trying Encryption key {2:s}".format(PLUGIN_NAME, PLUGIN_VERSION, keyname))
                     of = self.temporary_file(".epub")
 
@@ -561,13 +567,10 @@ class DeDRM(FileTypePlugin):
 
                 newkeys = []
                 newnames = []
-                idx = 0
-                for keyvalue in defaultkeys:
+                for idx, keyvalue in enumerate(defaultkeys):
                     if codecs.encode(keyvalue, 'hex').decode('ascii') not in dedrmprefs['adeptkeys'].values():
                         newkeys.append(keyvalue)
-                        newnames.append("default_ade_key_uuid_" + defaultnames[idx])
-                    idx += 1
-
+                        newnames.append(f"default_ade_key_uuid_{defaultnames[idx]}")
                 # Check for DeACSM keys:
                 try: 
                     from config import checkForDeACSMkeys
@@ -581,9 +584,7 @@ class DeDRM(FileTypePlugin):
                             newnames.append(newname)
                 except:
                     traceback.print_exc()
-                    pass
-
-                if len(newkeys) > 0:
+                if newkeys:
                     try:
                         for i,userkey in enumerate(newkeys):
                             print("{0} v{1}: Trying a new default key".format(PLUGIN_NAME, PLUGIN_VERSION))
@@ -618,8 +619,6 @@ class DeDRM(FileTypePlugin):
                     except Exception as e:
                         print("{0} v{1}: Unexpected Exception trying a new default key after {2:.1f} seconds".format(PLUGIN_NAME, PLUGIN_VERSION, time.time()-self.starttime))
                         traceback.print_exc()
-                        pass
-
                 # Something went wrong with decryption.
                 print("{0} v{1}: Ultimately failed to decrypt after {2:.1f} seconds. Read the FAQs at noDRM's repository: https://github.com/noDRM/DeDRM_tools/blob/master/FAQs.md".format(PLUGIN_NAME, PLUGIN_VERSION,time.time()-self.starttime))
                 raise DeDRMError("{0} v{1}: Ultimately failed to decrypt after {2:.1f} seconds. Read the FAQs at noDRM's repository: https://github.com/noDRM/DeDRM_tools/blob/master/FAQs.md".format(PLUGIN_NAME, PLUGIN_VERSION,time.time()-self.starttime))
@@ -648,9 +647,9 @@ class DeDRM(FileTypePlugin):
             print("{0} v{1}: {2} is a PDF ebook (EBX) for UUID {3}".format(PLUGIN_NAME, PLUGIN_VERSION, os.path.basename(path_to_ebook), book_uuid))
             # Check if we have a key for that UUID
             for keyname, userkeyhex in dedrmprefs['adeptkeys'].items():
-                if not book_uuid.lower() in keyname.lower():
+                if book_uuid.lower() not in keyname.lower():
                     continue
-            
+
                 # Found matching key
                 print("{0} v{1}: Trying UUID-matched encryption key {2:s}".format(PLUGIN_NAME, PLUGIN_VERSION, keyname))
                 of = self.temporary_file(".pdf")
@@ -662,7 +661,7 @@ class DeDRM(FileTypePlugin):
                     if result == 0:
                         print("{0} v{1}: Decrypted with key {2:s} after {3:.1f} seconds".format(PLUGIN_NAME, PLUGIN_VERSION,keyname,time.time()-self.starttime))
                         return of.name
-                       
+
                 except ineptpdf.ADEPTNewVersionError:
                     print("{0} v{1}: Book uses unsupported (too new) Adobe DRM.".format(PLUGIN_NAME, PLUGIN_VERSION, time.time()-self.starttime))
                     return path_to_ebook
@@ -723,13 +722,10 @@ class DeDRM(FileTypePlugin):
 
         newkeys = []
         newnames = []
-        idx = 0
-        for keyvalue in defaultkeys:
+        for idx, keyvalue in enumerate(defaultkeys):
             if codecs.encode(keyvalue,'hex') not in dedrmprefs['adeptkeys'].values():
                 newkeys.append(keyvalue)
-                newnames.append("default_ade_key_uuid_" + defaultnames[idx])
-            idx += 1
-
+                newnames.append(f"default_ade_key_uuid_{defaultnames[idx]}")
         # Check for DeACSM keys:
         try: 
             from config import checkForDeACSMkeys
@@ -744,7 +740,7 @@ class DeDRM(FileTypePlugin):
         except:
             traceback.print_exc()
 
-        if len(newkeys) > 0:
+        if newkeys:
             try:
                 for i,userkey in enumerate(newkeys):
                     print("{0} v{1}: Trying a new default key".format(PLUGIN_NAME, PLUGIN_VERSION))
@@ -868,7 +864,7 @@ class DeDRM(FileTypePlugin):
                 raise
 
             return retval
-        
+
         # Not an LCP book, do the normal Adobe handling.
 
         pdf_encryption = ineptpdf.getPDFencryptionType(path_to_ebook)
@@ -881,9 +877,9 @@ class DeDRM(FileTypePlugin):
         if pdf_encryption == "EBX_HANDLER":
             # Adobe eBook / ADEPT (normal or B&N)
             return self.PDFIneptDecrypt(path_to_ebook)
-        elif pdf_encryption == "Standard" or pdf_encryption == "Adobe.APS":
+        elif pdf_encryption in ["Standard", "Adobe.APS"]:
             return self.PDFStandardDecrypt(path_to_ebook)
-        elif pdf_encryption == "FOPN_fLock" or pdf_encryption == "FOPN_foweb":
+        elif pdf_encryption in ["FOPN_fLock", "FOPN_foweb"]:
             print("{0} v{1}: FileOpen encryption '{2}' is unsupported.".format(PLUGIN_NAME, PLUGIN_VERSION, pdf_encryption))
             print("{0} v{1}: Try the standalone script from the 'Tetrachroma_FileOpen_ineptpdf' folder in the Github repo.".format(PLUGIN_NAME, PLUGIN_VERSION))
             return path_to_ebook
@@ -939,16 +935,13 @@ class DeDRM(FileTypePlugin):
             except:
                 print("{0} v{1}: Exception when getting default Kindle Key after {2:.1f} seconds".format(PLUGIN_NAME, PLUGIN_VERSION, time.time()-self.starttime))
                 traceback.print_exc()
-                pass
-
-            newkeys = {}
             newnames = []
 
-            for i,keyvalue in enumerate(defaultkeys):
-                if keyvalue not in dedrmprefs['kindlekeys'].values():
-                    newkeys["key_{0:d}".format(i)] = keyvalue
-
-            if len(newkeys) > 0:
+            if newkeys := {
+                "key_{0:d}".format(i): keyvalue
+                for i, keyvalue in enumerate(defaultkeys)
+                if keyvalue not in dedrmprefs['kindlekeys'].values()
+            }:
                 print("{0} v{1}: Found {2} new {3}".format(PLUGIN_NAME, PLUGIN_VERSION, len(newkeys), "key" if len(newkeys)==1 else "keys"))
                 try:
                     book = k4mobidedrm.GetDecryptedBook(path_to_ebook,newkeys.items(),[],[],[],self.starttime)
@@ -958,12 +951,11 @@ class DeDRM(FileTypePlugin):
                     i = 1
                     for keyvalue in newkeys.values():
                         while "kindle_key_{0:d}_{1:d}".format(int(time.time()), i) in dedrmprefs['kindlekeys']:
-                            i = i + 1
+                            i += 1
                         dedrmprefs.addnamedvaluetoprefs('kindlekeys',"kindle_key_{0:d}_{1:d}".format(int(time.time()), i),keyvalue)
                     dedrmprefs.writeprefs()
                 except Exception as e:
                     traceback.print_exc()
-                    pass
             if not decoded:
                 #if you reached here then no luck raise and exception
                 print("{0} v{1}: Ultimately failed to decrypt after {2:.1f} seconds. Read the FAQs at noDRM's repository: https://github.com/noDRM/DeDRM_tools/blob/master/FAQs.md".format(PLUGIN_NAME, PLUGIN_VERSION,time.time()-self.starttime))
@@ -1020,11 +1012,9 @@ class DeDRM(FileTypePlugin):
         elif booktype == 'pdb':
             # eReader
             decrypted_ebook = self.eReaderDecrypt(path_to_ebook)
-            pass
         elif booktype == 'pdf':
             # Adobe PDF (hopefully) or LCP PDF
             decrypted_ebook = self.PDFDecrypt(path_to_ebook)
-            pass
         elif booktype == 'epub':
             # Adobe Adept, PassHash (B&N) or LCP ePub
             decrypted_ebook = self.ePubDecrypt(path_to_ebook)

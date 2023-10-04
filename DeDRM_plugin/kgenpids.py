@@ -53,11 +53,7 @@ def SHA1(message):
 def encode(data, map):
     result = b''
     for char in data:
-        if sys.version_info[0] == 2:
-            value = ord(char)
-        else:
-            value = char
-
+        value = ord(char) if sys.version_info[0] == 2 else char
         Q = (value ^ 0x80) // len(map)
         R = value % len(map)
 
@@ -98,8 +94,11 @@ def getTwoBitsFromBitField(bitField,offset):
 # Returns the six bits at offset from a bit field
 def getSixBitsFromBitField(bitField,offset):
     offset *= 3
-    value = (getTwoBitsFromBitField(bitField,offset) <<4) + (getTwoBitsFromBitField(bitField,offset+1) << 2) +getTwoBitsFromBitField(bitField,offset+2)
-    return value
+    return (
+        (getTwoBitsFromBitField(bitField, offset) << 4)
+        + (getTwoBitsFromBitField(bitField, offset + 1) << 2)
+        + getTwoBitsFromBitField(bitField, offset + 2)
+    )
 
 # 8 bits to six bits encoding from hash to generate PID string
 def encodePID(hash):
@@ -111,11 +110,11 @@ def encodePID(hash):
     return PID
 
 # Encryption table used to generate the device PID
-def generatePidEncryptionTable() :
+def generatePidEncryptionTable():
     table = []
     for counter1 in range (0,0x100):
         value = counter1
-        for counter2 in range (0,8):
+        for _ in range (0,8):
             if (value & 1 == 0) :
                 value = value >> 1
             else :
@@ -157,7 +156,7 @@ def checksumPid(s):
     crc = crc ^ (crc >> 16)
     res = s
     l = len(charMap4)
-    for i in (0,1):
+    for _ in (0, 1):
         b = crc & 0xff
         pos = (b // l) ^ (b % l)
         res += bytes(bytearray([charMap4[pos%l]]))
@@ -197,14 +196,11 @@ def getKindlePids(rec209, token, serialnum):
     if rec209 is None:
         return [serialnum]
 
-    pids=[]
-
     # Compute book PID
     pidHash = SHA1(serialnum+rec209+token)
     bookPID = encodePID(pidHash)
     bookPID = checksumPid(bookPID)
-    pids.append(bookPID)
-
+    pids = [bookPID]
     # compute fixed pid for old pre 2.5 firmware update pid as well
     kindlePID = pidFromSerial(serialnum, 7) + b"*"
     kindlePID = checksumPid(kindlePID)
@@ -227,8 +223,6 @@ def getK4Pids(rec209, token, kindleDatabase):
 
     except KeyError:
         kindleAccountToken = b''
-        pass
-
     try:
         # Get the DSN token, if present
         DSN = bytearray.fromhex((kindleDatabase[1])['DSN'])
@@ -268,9 +262,6 @@ def getK4Pids(rec209, token, kindleDatabase):
 
         # concat, hash and encode to calculate the DSN
         DSN = encode(SHA1(MazamaRandomNumber+encodedIDString+encodedUsername),charMap1)
-        #print "DSN",DSN.encode('hex')
-        pass
-
     if rec209 is None:
         pids.append(DSN+kindleAccountToken)
         return pids

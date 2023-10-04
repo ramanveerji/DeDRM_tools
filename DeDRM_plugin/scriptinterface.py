@@ -25,18 +25,18 @@ def decryptepub(infile, outdir, rscpath):
     # first fix the epub to make sure we do not get errors
     name, ext = os.path.splitext(os.path.basename(infile))
     bpath = os.path.dirname(infile)
-    zippath = os.path.join(bpath,name + '_temp.zip')
+    zippath = os.path.join(bpath, f'{name}_temp.zip')
     rv = zipfix.repairBook(infile, zippath)
     if rv != 0:
         print("Error while trying to fix epub")
         return rv
 
     # determine a good name for the output file
-    outfile = os.path.join(outdir, name + '_nodrm.epub')
+    outfile = os.path.join(outdir, f'{name}_nodrm.epub')
 
     rv = 1
     # first try with the Adobe adept epub
-    if  ineptepub.adeptBook(zippath):
+    if ineptepub.adeptBook(zippath):
         # try with any keyfiles (*.der) in the rscpath
         files = os.listdir(rscpath)
         filefilter = re.compile("\.der$", re.IGNORECASE)
@@ -54,13 +54,12 @@ def decryptepub(infile, outdir, rscpath):
                     errlog += traceback.format_exc()
                     errlog += str(e)
                     rv = 1
-        
+
         # now try with ignoble epub
         # try with any keyfiles (*.b64) in the rscpath
         files = os.listdir(rscpath)
         filefilter = re.compile("\.b64$", re.IGNORECASE)
-        files = filter(filefilter.search, files)
-        if files:
+        if files := filter(filefilter.search, files):
             for filename in files:
                 keypath = os.path.join(rscpath, filename)
                 userkey = open(keypath,'r').read()
@@ -94,13 +93,12 @@ def decryptpdf(infile, outdir, rscpath):
 
     # determine a good name for the output file
     name, ext = os.path.splitext(os.path.basename(infile))
-    outfile = os.path.join(outdir, name + '_nodrm.pdf')
+    outfile = os.path.join(outdir, f'{name}_nodrm.pdf')
 
     # try with any keyfiles (*.der) in the rscpath
     files = os.listdir(rscpath)
     filefilter = re.compile("\.der$", re.IGNORECASE)
-    files = filter(filefilter.search, files)
-    if files:
+    if files := filter(filefilter.search, files):
         for filename in files:
             keypath = os.path.join(rscpath, filename)
             userkey = open(keypath,'rb').read()
@@ -119,8 +117,7 @@ def decryptpdf(infile, outdir, rscpath):
 
 
 def decryptpdb(infile, outdir, rscpath):
-    errlog = ''
-    outname = os.path.splitext(os.path.basename(infile))[0] + ".pmlz"
+    outname = f"{os.path.splitext(os.path.basename(infile))[0]}.pmlz"
     outpath = os.path.join(outdir, outname)
     rv = 1
     socialpath = os.path.join(rscpath,'sdrmlist.txt')
@@ -128,6 +125,7 @@ def decryptpdb(infile, outdir, rscpath):
         keydata = open(socialpath,'r').read()
         keydata = keydata.rstrip(os.linesep)
         ar = keydata.split(',')
+        errlog = ''
         for i in ar:
             try:
                 name, cc8 = i.split(':')
@@ -190,8 +188,7 @@ def decryptk4mobi(infile, outdir, rscpath):
             androidFiles.append(dpath)
     files = os.listdir(rscpath)
     filefilter = re.compile("\.xml$", re.IGNORECASE)
-    files = filter(filefilter.search, files)
-    if files:
+    if files := filter(filefilter.search, files):
         for filename in files:
             dpath = os.path.join(rscpath,filename)
             androidFiles.append(dpath)

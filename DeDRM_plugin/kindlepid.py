@@ -31,7 +31,7 @@ def checksumPid(s):
     crc = crc ^ (crc >> 16)
     res = s
     l = len(letters)
-    for i in (0,1):
+    for _ in (0, 1):
         b = crc & 0xff
         pos = (b // l) ^ (b % l)
         res += bytes(bytearray([letters[pos%l]]))

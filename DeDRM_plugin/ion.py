@@ -160,10 +160,7 @@ class SymbolTable(object):
         if sid < 1:
             raise ValueError("Invalid symbol id")
 
-        if sid < len(self.table):
-            return self.table[sid]
-        else:
-            return ""
+        return self.table[sid] if sid < len(self.table) else ""
 
     def import_(self, table, maxid):
         for i in range(maxid):
@@ -282,16 +279,17 @@ class BinaryIonParser(object):
         self.containerstack.append(ContainerRec(nextpos=nextposition, tid=typeid, remaining=nextremaining))
 
     def stepin(self):
-        _assert(self.valuetid in [TID_STRUCT, TID_LIST, TID_SEXP] and not self.eof,
-                "valuetid=%s eof=%s" % (self.valuetid, self.eof))
+        _assert(
+            self.valuetid in [TID_STRUCT, TID_LIST, TID_SEXP] and not self.eof,
+            f"valuetid={self.valuetid} eof={self.eof}",
+        )
         _assert((not self.valueisnull or self.state == ParserState.AfterValue) and
                (self.valueisnull or self.state == ParserState.BeforeValue))
 
         nextrem = self.localremaining
         if nextrem != -1:
             nextrem -= self.valuelen
-            if nextrem < 0:
-                nextrem = 0
+            nextrem = max(nextrem, 0)
         self.push(self.parenttid, self.stream.tell() + self.valuelen, nextrem)
 
         self.isinstruct = (self.valuetid == TID_STRUCT)
@@ -392,9 +390,7 @@ class BinaryIonParser(object):
 
         _assert(i < 4 or (b & 0x80) != 0, "int overflow")
 
-        if negative:
-            return -result
-        return result
+        return -result if negative else result
 
     def readvaruint(self):
         b = ord(self.read())
@@ -427,13 +423,9 @@ class BinaryIonParser(object):
             b[0] = b[0] & 0x7F
             signed = True
 
-        # Convert variably sized network order integer into 64-bit little endian
-        j = 0
         vb = [0] * 8
-        for i in range(len(b), -1, -1):
+        for j, i in enumerate(range(len(b), -1, -1)):
             vb[i] = b[j]
-            j += 1
-
         v = struct.unpack("<Q", b"".join(bchr(x) for x in vb))[0]
 
         result = v * (10 ** exponent)
@@ -507,21 +499,22 @@ class BinaryIonParser(object):
 
         self.stepout()
 
-        if name == "" or name == SystemSymbols.ION:
+        if name in ["", SystemSymbols.ION]:
             return
 
-        if version < 1:
-            version = 1
-
+        version = max(version, 1)
         table = self.findcatalogitem(name)
         if maxid < 0:
-            _assert(table is not None and version == table.version, "Import %s lacks maxid" % name)
+            _assert(
+                table is not None and version == table.version,
+                f"Import {name} lacks maxid",
+            )
             maxid = len(table.symnames)
 
         if table is not None:
             self.symbols.import_(table, min(maxid, len(table.symnames)))
             if len(table.symnames) < maxid:
-                self.symbols.importunknown(name + "-unknown", maxid - len(table.symnames))
+                self.symbols.importunknown(f"{name}-unknown", maxid - len(table.symnames))
         else:
             self.symbols.importunknown(name, maxid)
 
@@ -550,7 +543,10 @@ class BinaryIonParser(object):
         return result
 
     def lobvalue(self):
-        _assert(self.valuetid in [TID_CLOB, TID_BLOB], "Not a LOB type: %s" % self.getfieldname())
+        _assert(
+            self.valuetid in [TID_CLOB, TID_BLOB],
+            f"Not a LOB type: {self.getfieldname()}",
+        )
 
         if self.valueisnull:
             return None
@@ -591,11 +587,7 @@ class BinaryIonParser(object):
                 for i in range(self.valuelen - 1, -1, -1):
                     v = (v | (ord(self.read()) << (i * 8)))
 
-                if self.valuetid == TID_NEGINT:
-                    self.value = -v
-                else:
-                    self.value = v
-
+                self.value = -v if self.valuetid == TID_NEGINT else v
         elif self.valuetid == TID_DECIMAL:
             self.value = self.readdecimal()
 
@@ -657,21 +649,14 @@ class BinaryIonParser(object):
         if b is None:
             return "null"
 
-        result = ""
-        for i in b:
-            result += ("%02x " % ord(i))
-
-        if len(result) > 0:
+        result = "".join(("%02x " % ord(i)) for i in b)
+        if result != "":
             result = result[:-1]
         return result
 
     def ionwalk(self, supert, indent, lst):
         while self.hasnext():
-            if supert == TID_STRUCT:
-                L = self.getfieldname() + ":"
-            else:
-                L = ""
-
+            L = f"{self.getfieldname()}:" if supert == TID_STRUCT else ""
             t = self.next()
             if t in [TID_STRUCT, TID_LIST]:
                 if L != "":
@@ -682,20 +667,20 @@ class BinaryIonParser(object):
                 if t == TID_STRUCT:
                     lst.append(indent + "{")
                 else:
-                    lst.append(indent + "[")
+                    lst.append(f"{indent}[")
 
                 self.stepin()
-                self.ionwalk(t, indent + "  ", lst)
+                self.ionwalk(t, f"{indent}  ", lst)
                 self.stepout()
 
                 if t == TID_STRUCT:
                     lst.append(indent + "}")
                 else:
-                    lst.append(indent + "]")
+                    lst.append(f"{indent}]")
 
             else:
                 if t == TID_STRING:
-                    L += ('"%s"' % self.stringvalue())
+                    L += f'"{self.stringvalue()}"'
                 elif t in [TID_CLOB, TID_BLOB]:
                     L += ("{%s}" % self.printlob(self.lobvalue()))
                 elif t == TID_POSINT:
@@ -821,92 +806,88 @@ class workspace(object):
   def __init__(self,initial_list):
     self.work=initial_list
   def shuffle(self,shuflist):
-    ll=len(shuflist)
-    rt=[]
-    for i in range(ll):
-      rt.append(self.work[shuflist[i]])
-    self.work=rt
+      ll=len(shuflist)
+      rt = [self.work[shuflist[i]] for i in range(ll)]
+      self.work=rt
   def sbox(self,table,matrix,skplist=[]): #table is list of 4-byte integers
-    offset=0
-    nwork=list(self.work)
-    wo=0
-    toff=0
-    while offset<0x6000:
-      uv5=table[toff+nwork[wo+0]]
-      uv1=table[toff+nwork[wo+1]+0x100]
-      uv2=table[toff+nwork[wo+2]+0x200]
-      uv3=table[toff+nwork[wo+3]+0x300]
-      moff=0
-      if 0 in skplist:
-        moff+=0x400
-      else:
-        nib1=matrix[moff+offset+(uv1>>0x1c)|( (uv5>>0x18)&0xf0)]
-        moff+=0x100
-        nib2=matrix[moff+offset+(uv3>>0x1c)|( (uv2>>0x18)&0xf0)]
-        moff+=0x100
-        nib3=matrix[moff+offset+((uv1>>0x18)&0xf) |( (uv5>>0x14)&0xf0)]
-        moff+=0x100
-        nib4=matrix[moff+offset+((uv3>>0x18)&0xf) |( (uv2>>0x14)&0xf0)]
-        moff+=0x100
-      rnib1=matrix[moff+offset+nib1*0x10+nib2]
-      moff+=0x100
-      rnib2=matrix[moff+offset+nib3*0x10+nib4]
-      moff+=0x100
-      nwork[wo+0]=rnib1*0x10+rnib2
-      if 1 in skplist:
-        moff+=0x400
-      else:
-        nib1=matrix[moff+offset+((uv1>>0x14)&0xf)|( (uv5>>0x10)&0xf0)]
-        moff+=0x100
-        nib2=matrix[moff+offset+((uv3>>0x14)&0xf)|( (uv2>>0x10)&0xf0)]
-        moff+=0x100
-        nib3=matrix[moff+offset+((uv1>>0x10)&0xf) |( (uv5>>0xc)&0xf0)]
-        moff+=0x100
-        nib4=matrix[moff+offset+((uv3>>0x10)&0xf) |( (uv2>>0xc)&0xf0)]
-        moff+=0x100
+      nwork=list(self.work)
+      wo=0
+      toff=0
+      for offset in range(0, 0x6000, 6144):
+          uv5=table[toff+nwork[wo+0]]
+          uv1=table[toff+nwork[wo+1]+0x100]
+          uv2=table[toff+nwork[wo+2]+0x200]
+          uv3=table[toff+nwork[wo+3]+0x300]
+          moff=0
+          if 0 in skplist:
+            moff+=0x400
+          else:
+            nib1=matrix[moff+offset+(uv1>>0x1c)|( (uv5>>0x18)&0xf0)]
+            moff+=0x100
+            nib2=matrix[moff+offset+(uv3>>0x1c)|( (uv2>>0x18)&0xf0)]
+            moff+=0x100
+            nib3=matrix[moff+offset+((uv1>>0x18)&0xf) |( (uv5>>0x14)&0xf0)]
+            moff+=0x100
+            nib4=matrix[moff+offset+((uv3>>0x18)&0xf) |( (uv2>>0x14)&0xf0)]
+            moff+=0x100
+          rnib1=matrix[moff+offset+nib1*0x10+nib2]
+          moff+=0x100
+          rnib2=matrix[moff+offset+nib3*0x10+nib4]
+          moff+=0x100
+          nwork[wo+0]=rnib1*0x10+rnib2
+          if 1 in skplist:
+            moff+=0x400
+          else:
+            nib1=matrix[moff+offset+((uv1>>0x14)&0xf)|( (uv5>>0x10)&0xf0)]
+            moff+=0x100
+            nib2=matrix[moff+offset+((uv3>>0x14)&0xf)|( (uv2>>0x10)&0xf0)]
+            moff+=0x100
+            nib3=matrix[moff+offset+((uv1>>0x10)&0xf) |( (uv5>>0xc)&0xf0)]
+            moff+=0x100
+            nib4=matrix[moff+offset+((uv3>>0x10)&0xf) |( (uv2>>0xc)&0xf0)]
+            moff+=0x100
 
-      rnib1=matrix[moff+offset+nib1*0x10+nib2]
-      moff+=0x100
-      rnib2=matrix[moff+offset+nib3*0x10+nib4]
-      moff+=0x100
-      nwork[wo+1]=rnib1*0x10+rnib2
-      if 2 in skplist:
-        moff+=0x400
-      else:
-        nib1=matrix[moff+offset+((uv1>>0xc)&0xf)|( (uv5>>0x8)&0xf0)]
-        moff+=0x100
-        nib2=matrix[moff+offset+((uv3>>0xc)&0xf)|( (uv2>>0x8)&0xf0)]
-        moff+=0x100
-        nib3=matrix[moff+offset+((uv1>>0x8)&0xf) |( (uv5>>0x4)&0xf0)]
-        moff+=0x100
-        nib4=matrix[moff+offset+((uv3>>0x8)&0xf) |( (uv2>>0x4)&0xf0)]
-        moff+=0x100
-      rnib1=matrix[moff+offset+nib1*0x10+nib2]
-      moff+=0x100
-      rnib2=matrix[moff+offset+nib3*0x10+nib4]
-      moff+=0x100
-      nwork[wo+2]=rnib1*0x10+rnib2
-      if 3 in skplist:
-        moff+=0x400
-      else:
-        nib1=matrix[moff+offset+((uv1>>0x4)&0xf)|( (uv5)&0xf0)]
-        moff+=0x100
-        nib2=matrix[moff+offset+((uv3>>0x4)&0xf)|( (uv2)&0xf0)]
-        moff+=0x100
-        nib3=matrix[moff+offset+((uv1)&0xf)|( (uv5<<4)&0xf0) ]
-        moff+=0x100
-        nib4=matrix[moff+offset+((uv3)&0xf)|( (uv2<<4)&0xf0) ]
-        moff+=0x100
-      ##############
-      rnib1=matrix[moff+offset+nib1*0x10+nib2]
-      moff+=0x100
-      rnib2=matrix[moff+offset+nib3*0x10+nib4]
-      moff+=0x100
-      nwork[wo+3]=rnib1*0x10+rnib2
-      offset = offset + 0x1800
-      wo+=4
-      toff+=0x400
-    self.work=nwork
+          rnib1=matrix[moff+offset+nib1*0x10+nib2]
+          moff+=0x100
+          rnib2=matrix[moff+offset+nib3*0x10+nib4]
+          moff+=0x100
+          nwork[wo+1]=rnib1*0x10+rnib2
+          if 2 in skplist:
+            moff+=0x400
+          else:
+            nib1=matrix[moff+offset+((uv1>>0xc)&0xf)|( (uv5>>0x8)&0xf0)]
+            moff+=0x100
+            nib2=matrix[moff+offset+((uv3>>0xc)&0xf)|( (uv2>>0x8)&0xf0)]
+            moff+=0x100
+            nib3=matrix[moff+offset+((uv1>>0x8)&0xf) |( (uv5>>0x4)&0xf0)]
+            moff+=0x100
+            nib4=matrix[moff+offset+((uv3>>0x8)&0xf) |( (uv2>>0x4)&0xf0)]
+            moff+=0x100
+          rnib1=matrix[moff+offset+nib1*0x10+nib2]
+          moff+=0x100
+          rnib2=matrix[moff+offset+nib3*0x10+nib4]
+          moff+=0x100
+          nwork[wo+2]=rnib1*0x10+rnib2
+          if 3 in skplist:
+            moff+=0x400
+          else:
+            nib1=matrix[moff+offset+((uv1>>0x4)&0xf)|( (uv5)&0xf0)]
+            moff+=0x100
+            nib2=matrix[moff+offset+((uv3>>0x4)&0xf)|( (uv2)&0xf0)]
+            moff+=0x100
+            nib3=matrix[moff+offset+((uv1)&0xf)|( (uv5<<4)&0xf0) ]
+            moff+=0x100
+            nib4=matrix[moff+offset+((uv3)&0xf)|( (uv2<<4)&0xf0) ]
+            moff+=0x100
+          ##############
+          rnib1=matrix[moff+offset+nib1*0x10+nib2]
+          moff+=0x100
+          rnib2=matrix[moff+offset+nib3*0x10+nib4]
+          moff+=0x100
+          nwork[wo+3]=rnib1*0x10+rnib2
+          wo+=4
+          toff+=0x400
+      self.work=nwork
   def lookup(self,ltable):
     for a in range(len(self.work)):
       self.work[a]=ltable[a]
@@ -1227,57 +1208,54 @@ def obfuscate2(secret, version):
 # scramble3() and obfuscate3() from https://github.com/Satsuoni/DeDRM_tools/commit/da6b6a0c911b6d45fe1b13042b690daebc1cc22f
 
 def scramble3(st,magic):
-  ret=bytearray(len(st))
-  padlen=len(st)
-  divs = padlen // magic
-  cntr = 0
-  iVar6 = 0
-  offset = 0
-  if (0 < ((magic - 1) + divs)):
-    while True:
-      if (offset & 1) == 0 :
-        uVar4 = divs - 1
-        if offset < divs:
-          iVar3 = 0
-          uVar4 = offset
-        else:
-          iVar3 = (offset - divs) + 1
-        if uVar4>=0:
-          iVar5 = uVar4 * magic
-          index =  ((padlen - 1) - cntr)
-          while True:
-            if (magic <= iVar3): break
-            ret[index] = st[iVar3 + iVar5]
-            iVar3 = iVar3 + 1
-            cntr = cntr + 1
-            uVar4 = uVar4 - 1
-            iVar5 = iVar5 - magic
-            index -= 1
-            if uVar4<=-1: break
-      else: 
-        if (offset < magic):
-          iVar3 = 0
-        else :
-          iVar3 = (offset - magic) + 1
-        if (iVar3 < divs):
-          uVar4 = offset
-          if (magic <= offset):
-            uVar4 = magic - 1
+    ret=bytearray(len(st))
+    padlen=len(st)
+    divs = padlen // magic
+    cntr = 0
+    iVar6 = 0
+    offset = 0
+    if (magic - 1) + divs > 0:
+        while True:
+            if (offset & 1) == 0:
+                uVar4 = divs - 1
+                if offset < divs:
+                  iVar3 = 0
+                  uVar4 = offset
+                else:
+                  iVar3 = (offset - divs) + 1
+                if uVar4>=0:
+                  iVar5 = uVar4 * magic
+                  index =  ((padlen - 1) - cntr)
+                  while True:
+                    if (magic <= iVar3): break
+                    ret[index] = st[iVar3 + iVar5]
+                    iVar3 = iVar3 + 1
+                    cntr = cntr + 1
+                    uVar4 = uVar4 - 1
+                    iVar5 = iVar5 - magic
+                    index -= 1
+                    if uVar4<=-1: break
+            else: 
+                iVar3 = 0 if (offset < magic) else (offset - magic) + 1
+                if (iVar3 < divs):
+                  uVar4 = offset
+                  if (magic <= offset):
+                    uVar4 = magic - 1
 
-          index = ((padlen - 1) - cntr)
-          iVar5 = iVar3 * magic
-          while True:
-            if (uVar4 < 0) : break
-            iVar3 += 1
-            ret[index] = st[uVar4 + iVar5]
-            uVar4 -= 1
-            index=index-1
-            iVar5 = iVar5 + magic;
-            cntr += 1;
-            if iVar3>=divs: break 
-      offset = offset + 1
-      if offset >= ((magic - 1) + divs) :break 
-  return ret
+                  index = ((padlen - 1) - cntr)
+                  iVar5 = iVar3 * magic
+                  while True:
+                    if (uVar4 < 0) : break
+                    iVar3 += 1
+                    ret[index] = st[uVar4 + iVar5]
+                    uVar4 -= 1
+                    index=index-1
+                    iVar5 = iVar5 + magic;
+                    cntr += 1;
+                    if iVar3>=divs: break
+            offset = offset + 1
+            if offset >= ((magic - 1) + divs) :break
+    return ret
 
 #not sure if the third variant is used anywhere, but it is in Kindle, so I tried to add it
 def obfuscate3(secret, version):

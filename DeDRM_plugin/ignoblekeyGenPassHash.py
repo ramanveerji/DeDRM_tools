@@ -108,6 +108,8 @@ def gui_main():
     except:
         return cli_main()
 
+
+
     class DecryptionDialog(tkinter.Frame):
         def __init__(self, root):
             tkinter.Frame.__init__(self, root, border=5)
@@ -140,12 +142,15 @@ def gui_main():
             button.pack(side=tkinter.constants.RIGHT)
 
         def get_keypath(self):
-            keypath = tkinter.filedialog.asksaveasfilename(
-                parent=None, title="Select B&N ePub key file to produce",
+            if keypath := tkinter.filedialog.asksaveasfilename(
+                parent=None,
+                title="Select B&N ePub key file to produce",
                 defaultextension=".b64",
-                filetypes=[('base64-encoded files', '.b64'),
-                           ('All Files', '.*')])
-            if keypath:
+                filetypes=[
+                    ('base64-encoded files', '.b64'),
+                    ('All Files', '.*'),
+                ],
+            ):
                 keypath = os.path.normpath(keypath)
                 self.keypath.delete(0, tkinter.constants.END)
                 self.keypath.insert(0, keypath)
@@ -172,6 +177,7 @@ def gui_main():
                 return
             open(keypath,'wb').write(userkey)
             self.status['text'] = "Keyfile successfully generated"
+
 
     root = tkinter.Tk()
     root.title("Barnes & Noble ePub Keyfile Generator v.{0}".format(__version__))

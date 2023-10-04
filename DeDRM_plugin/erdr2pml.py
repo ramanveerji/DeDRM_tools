@@ -99,7 +99,7 @@ class Sectionizer(object):
 
     def __init__(self, filename, ident):
         self.contents = open(filename, 'rb').read()
-        self.header = self.contents[0:72]
+        self.header = self.contents[:72]
         self.num_sections, = struct.unpack('>H', self.contents[76:78])
         # Dictionary or normal content (TODO: Not hard-coded)
         if self.header[0x3C:0x3C+8] != ident:
@@ -165,14 +165,14 @@ class EreaderProcessor(object):
     def __init__(self, sect, user_key):
         self.section_reader = sect.loadSection
         data = self.section_reader(0)
-        version,  = struct.unpack('>H', data[0:2])
+        version, = struct.unpack('>H', data[:2])
         self.version = version
         logging.info('eReader file format version %s', version)
-        if version != 272 and version != 260 and version != 259:
+        if version not in [272, 260, 259]:
             raise ValueError('incorrect eReader version %d (error 1)' % version)
         data = self.section_reader(1)
         self.data = data
-        des = DES.new(fixKey(data[0:8]), DES.MODE_ECB)
+        des = DES.new(fixKey(data[:8]), DES.MODE_ECB)
         cookie_shuf, cookie_size = struct.unpack('>LL', des.decrypt(data[-8:]))
         if cookie_shuf < 3 or cookie_shuf > 0x14 or cookie_size < 0xf0 or cookie_size > 0x200:
             raise ValueError('incorrect eReader version (error 2)')
@@ -185,9 +185,10 @@ class EreaderProcessor(object):
                 r[j] = data[i]
             assert len(bytes(r)) == len(data)
             return bytes(r)
-        r = unshuff(input[0:-8], cookie_shuf)
 
-        drm_sub_version = struct.unpack('>H', r[0:2])[0]
+        r = unshuff(input[:-8], cookie_shuf)
+
+        drm_sub_version = struct.unpack('>H', r[:2])[0]
         self.num_text_pages = struct.unpack('>H', r[2:4])[0] - 1
         self.num_image_pages = struct.unpack('>H', r[26:26+2])[0]
         self.first_image_page = struct.unpack('>H', r[24:24+2])[0]
@@ -216,18 +217,6 @@ class EreaderProcessor(object):
             self.xortable_offset  = struct.unpack('>H', r[40:40+2])[0]
             self.xortable_size = struct.unpack('>H', r[42:42+2])[0]
             self.xortable = self.data[self.xortable_offset:self.xortable_offset + self.xortable_size]
-        else:
-            # Nothing needs to be done
-            pass
-            # self.num_bookinfo_pages = 0
-            # self.num_chapter_pages = 0
-            # self.num_link_pages = 0
-            # self.num_xtextsize_pages = 0
-            # self.first_bookinfo_page = -1
-            # self.first_chapter_page = -1
-            # self.first_link_page = -1
-            # self.first_xtextsize_page = -1
-
         logging.debug('self.num_text_pages %d', self.num_text_pages)
         logging.debug('self.num_footnote_pages %d, self.first_footnote_page %d', self.num_footnote_pages , self.first_footnote_page)
         logging.debug('self.num_sidebar_pages %d, self.first_sidebar_page %d', self.num_sidebar_pages , self.first_sidebar_page)
@@ -243,7 +232,7 @@ class EreaderProcessor(object):
             encrypted_key_sha = r[44:44+20]
             encrypted_key = r[64:64+8]
         elif version == 260:
-            if drm_sub_version != 13 and drm_sub_version != 11:
+            if drm_sub_version not in [13, 11]:
                 raise ValueError('incorrect eReader version %d (error 3)' % drm_sub_version)
             if drm_sub_version == 13:
                 encrypted_key = r[44:44+8]
@@ -378,7 +367,7 @@ def decryptBook(infile, outpath, make_pmlz, user_key):
     else:
         pmlzname = None
         outdir = outpath
-        imagedirpath = os.path.join(outdir,bookname + "_img")
+        imagedirpath = os.path.join(outdir, f"{bookname}_img")
 
     try:
         if not os.path.exists(outdir):
@@ -397,7 +386,7 @@ def decryptBook(infile, outpath, make_pmlz, user_key):
 
         print("Extracting pml")
         pml_string = er.getText()
-        pmlfilename = bookname + ".pml"
+        pmlfilename = f"{bookname}.pml"
         open(os.path.join(outdir, pmlfilename),'wb').write(cleanPML(pml_string))
         if pmlzname is not None:
             import zipfile
@@ -470,22 +459,20 @@ def cli_main():
         if o == "-h":
             usage()
             return 0
-        elif o == "-p":
+        elif o in ["-p", "--make-pmlz"]:
             make_pmlz = True
-        elif o == "--make-pmlz":
-            make_pmlz = True
-
-    if len(args)!=3 and len(args)!=4:
+    if len(args) not in [3, 4]:
         usage()
         return 1
 
     if len(args)==3:
         infile, name, cc = args
-        if make_pmlz:
-            outpath = os.path.splitext(infile)[0] + ".pmlz"
-        else:
-            outpath = os.path.splitext(infile)[0] + "_Source"
-    elif len(args)==4:
+        outpath = (
+            f"{os.path.splitext(infile)[0]}.pmlz"
+            if make_pmlz
+            else f"{os.path.splitext(infile)[0]}_Source"
+        )
+    else:
         infile, outpath, name, cc = args
 
     print(binascii.b2a_hex(getuser_key(name,cc)))

@@ -67,9 +67,7 @@ class DeDRM_Prefs():
             self.dedrmprefs['adobe_pdf_passphrases'] = []
 
     def __getitem__(self,kind = None):
-        if kind is not None:
-            return self.dedrmprefs[kind]
-        return self.dedrmprefs
+        return self.dedrmprefs[kind] if kind is not None else self.dedrmprefs
 
     def set(self, kind, value):
         self.dedrmprefs[kind] = value
@@ -92,7 +90,6 @@ class DeDRM_Prefs():
                 return (True, newname)
         except:
             traceback.print_exc()
-            pass
         return (False, keyname)
 
     def addvaluetoprefs(self, prefkind, prefsvalue):

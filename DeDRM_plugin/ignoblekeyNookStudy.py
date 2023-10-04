@@ -54,28 +54,16 @@ def getNookLogFiles():
         # some 64 bit machines do not have the proper registry key for some reason
         # or the python interface to the 32 vs 64 bit registry is broken
         paths = set()
-        if 'LOCALAPPDATA' in os.environ.keys():
-            # Python 2.x does not return unicode env. Use Python 3.x
-            if sys.version_info[0] == 2:
-                path = winreg.ExpandEnvironmentStrings(u"%LOCALAPPDATA%")
-            else:
-                path = winreg.ExpandEnvironmentStrings("%LOCALAPPDATA%")
+        if 'LOCALAPPDATA' in os.environ:
+            path = winreg.ExpandEnvironmentStrings(u"%LOCALAPPDATA%")
             if os.path.isdir(path):
                 paths.add(path)
-        if 'USERPROFILE' in os.environ.keys():
-            # Python 2.x does not return unicode env. Use Python 3.x
-            if sys.version_info[0] == 2:
-                path = winreg.ExpandEnvironmentStrings(u"%USERPROFILE%")+u"\\AppData\\Local"
-            else:
-                path = winreg.ExpandEnvironmentStrings("%USERPROFILE%")+"\\AppData\\Local"
-
+        if 'USERPROFILE' in os.environ:
+            path = winreg.ExpandEnvironmentStrings(u"%USERPROFILE%")+u"\\AppData\\Local"
             if os.path.isdir(path):
                 paths.add(path)
 
-            if sys.version_info[0] == 2:  
-                path = winreg.ExpandEnvironmentStrings(u"%USERPROFILE%")+u"\\AppData\\Roaming"
-            else:
-                path = winreg.ExpandEnvironmentStrings("%USERPROFILE%")+"\\AppData\\Roaming"
+            path = winreg.ExpandEnvironmentStrings(u"%USERPROFILE%")+u"\\AppData\\Roaming"
             if os.path.isdir(path):
                 paths.add(path)
         # User Shell Folders show take precedent over Shell Folders if present
@@ -113,30 +101,30 @@ def getNookLogFiles():
             logpath = path +'\\Barnes & Noble\\NOOKstudy\\logs\\BNClientLog.txt'
             if os.path.isfile(logpath):
                 found = True
-                print('Found nookStudy log file: ' + logpath, file=sys.stderr)
+                print(f'Found nookStudy log file: {logpath}', file=sys.stderr)
                 logFiles.append(logpath)
     else:
         home = os.getenv('HOME')
         # check for BNClientLog.txt in various locations
-        testpath = home + '/Library/Application Support/Barnes & Noble/DesktopReader/logs/BNClientLog.txt'
+        testpath = f'{home}/Library/Application Support/Barnes & Noble/DesktopReader/logs/BNClientLog.txt'
         if os.path.isfile(testpath):
             logFiles.append(testpath)
-            print('Found nookStudy log file: ' + testpath, file=sys.stderr)
+            print(f'Found nookStudy log file: {testpath}', file=sys.stderr)
             found = True
-        testpath = home + '/Library/Application Support/Barnes & Noble/DesktopReader/indices/BNClientLog.txt'
+        testpath = f'{home}/Library/Application Support/Barnes & Noble/DesktopReader/indices/BNClientLog.txt'
         if os.path.isfile(testpath):
             logFiles.append(testpath)
-            print('Found nookStudy log file: ' + testpath, file=sys.stderr)
+            print(f'Found nookStudy log file: {testpath}', file=sys.stderr)
             found = True
-        testpath = home + '/Library/Application Support/Barnes & Noble/BNDesktopReader/logs/BNClientLog.txt'
+        testpath = f'{home}/Library/Application Support/Barnes & Noble/BNDesktopReader/logs/BNClientLog.txt'
         if os.path.isfile(testpath):
             logFiles.append(testpath)
-            print('Found nookStudy log file: ' + testpath, file=sys.stderr)
+            print(f'Found nookStudy log file: {testpath}', file=sys.stderr)
             found = True
-        testpath = home + '/Library/Application Support/Barnes & Noble/BNDesktopReader/indices/BNClientLog.txt'
+        testpath = f'{home}/Library/Application Support/Barnes & Noble/BNDesktopReader/indices/BNClientLog.txt'
         if os.path.isfile(testpath):
             logFiles.append(testpath)
-            print('Found nookStudy log file: ' + testpath, file=sys.stderr)
+            print(f'Found nookStudy log file: {testpath}', file=sys.stderr)
             found = True
 
     if not found:
@@ -149,8 +137,7 @@ def getKeysFromLog(kLogFile):
     keys = []
     regex = re.compile("ccHash: \"(.{28})\"");
     for line in open(kLogFile):
-        for m in regex.findall(line):
-            keys.append(m)
+        keys.extend(iter(regex.findall(line)))
     return keys
 
 # interface for calibre plugin
@@ -159,8 +146,7 @@ def nookkeys(files = []):
     if files == []:
         files = getNookLogFiles()
     for file in files:
-        fileKeys = getKeysFromLog(file)
-        if fileKeys:
+        if fileKeys := getKeysFromLog(file):
             print("Found {0} keys in the Nook Study log files".format(len(fileKeys)), file=sys.stderr)
             keys.extend(fileKeys)
     return list(set(keys))
@@ -216,7 +202,7 @@ def cli_main():
         if o == "-h":
             usage(progname)
             sys.exit(0)
-        if o == "-k":
+        elif o == "-k":
             files = [a]
 
     if len(args) > 1:
@@ -289,9 +275,7 @@ def gui_main():
         text = traceback.format_exc()
         ExceptionDialog(root, text).pack(fill=tkinter.constants.BOTH, expand=1)
         root.mainloop()
-    if not success:
-        return 1
-    return 0
+    return 1 if not success else 0
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:

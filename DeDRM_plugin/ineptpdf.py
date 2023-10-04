@@ -85,11 +85,7 @@ except ImportError:
 
 
 def unpad(data, padding=16):
-    if sys.version_info[0] == 2:
-        pad_len = ord(data[-1])
-    else:
-        pad_len = data[-1]
-
+    pad_len = ord(data[-1]) if sys.version_info[0] == 2 else data[-1]
     return data[:-pad_len]
 
 #@@CALIBRE_COMPAT_CODE@@
@@ -191,7 +187,7 @@ class PSLiteral(PSObject):
             if not char.isalnum():
                 char = '#%02x' % ord(char)
             name.append(char)
-        return '/%s' % ''.join(name)
+        return f"/{''.join(name)}"
 
 # PSKeyword
 class PSKeyword(PSObject):
@@ -338,12 +334,7 @@ class PSBaseParser(object):
         if not m:
             return (self.parse_main, len(s))
         j = m.start(0)
-        if isinstance(s[j], str):
-            # Python 2
-            c = s[j]
-        else:
-            # Python 3
-            c = bytes([s[j]])
+        c = s[j] if isinstance(s[j], str) else bytes([s[j]])
         self.tokenstart = self.bufpos+j
         if c == b'%':
             self.token = c
@@ -395,10 +386,7 @@ class PSBaseParser(object):
             return (self.parse_literal, len(s))
         j = m.start(0)
         self.token += s[i:j]
-        if isinstance(s[j], str):
-            c = s[j]
-        else:
-            c = bytes([s[j]])
+        c = s[j] if isinstance(s[j], str) else bytes([s[j]])
         if c == b'#':
             self.hex = b''
             return (self.parse_literal_hex, j+1)
@@ -406,17 +394,14 @@ class PSBaseParser(object):
         return (self.parse_main, j)
 
     def parse_literal_hex(self, s, i):
-        if isinstance(s[i], str):
-            c = s[i]
-        else:
-            c = bytes([s[i]])
+        c = s[i] if isinstance(s[i], str) else bytes([s[i]])
         if HEX.match(c) and len(self.hex) < 2:
             self.hex += c
             return (self.parse_literal_hex, i+1)
-        if self.hex:
-            if sys.version_info[0] == 2: 
+        if self.hex: 
+            if sys.version_info[0] == 2:
                 self.token += chr(int(self.hex, 16))
-            else: 
+            else:
                 self.token += bytes([int(self.hex, 16)])
         return (self.parse_literal, i)
 
@@ -427,10 +412,7 @@ class PSBaseParser(object):
             return (self.parse_number, len(s))
         j = m.start(0)
         self.token += s[i:j]
-        if isinstance(s[j], str):
-            c = s[j]
-        else:
-            c = bytes([s[j]])
+        c = s[j] if isinstance(s[j], str) else bytes([s[j]])
         if c == b'.':
             self.token += c
             return (self.parse_decimal, j+1)
@@ -473,10 +455,7 @@ class PSBaseParser(object):
             return (self.parse_string, len(s))
         j = m.start(0)
         self.token += s[i:j]
-        if isinstance(s[j], str):
-            c = s[j]
-        else:
-            c = bytes([s[j]])
+        c = s[j] if isinstance(s[j], str) else bytes([s[j]])
         if c == b'\\':
             self.oct = ''
             return (self.parse_string_1, j+1)
@@ -493,10 +472,7 @@ class PSBaseParser(object):
         return (self.parse_main, j+1)
 
     def parse_string_1(self, s, i):
-        if isinstance(s[i], str):
-            c = s[i]
-        else:
-            c = bytes([s[i]])
+        c = s[i] if isinstance(s[i], str) else bytes([s[i]])
         if OCT_STRING.match(c) and len(self.oct) < 3:
             self.oct += c
             return (self.parse_string_1, i+1)
@@ -507,25 +483,21 @@ class PSBaseParser(object):
                 self.token += bytes([int(self.oct, 8)])  
             return (self.parse_string, i)
         if c in ESC_STRING:
-
             if sys.version_info[0] == 2:
                 self.token += chr(ESC_STRING[c])
-            else: 
+            else:
                 self.token += bytes([ESC_STRING[c]])
-                
+
         return (self.parse_string, i+1)
 
     def parse_wopen(self, s, i):
-        if isinstance(s[i], str):
-            c = s[i]
-        else:
-            c = bytes([s[i]])
+        c = s[i] if isinstance(s[i], str) else bytes([s[i]])
         if c.isspace() or HEX.match(c):
             return (self.parse_hexstring, i)
         if c == b'<':
             self.add_token(KEYWORD_DICT_BEGIN)
             i += 1
-        if c == b'>':
+        elif c == b'>':
             # Empty array without any contents. Why though?
             # We need to add some dummy python object that will serialize to 
             # nothing, otherwise the code removes the whole array.
@@ -535,10 +507,7 @@ class PSBaseParser(object):
         return (self.parse_main, i)
 
     def parse_wclose(self, s, i):
-        if isinstance(s[i], str):
-            c = s[i]
-        else:
-            c = bytes([s[i]])
+        c = s[i] if isinstance(s[i], str) else bytes([s[i]])
         if c == b'>':
             self.add_token(KEYWORD_DICT_END)
             i += 1
@@ -564,8 +533,7 @@ class PSBaseParser(object):
         while not self.tokens:
             self.fillbuf()
             (self.parse1, self.charpos) = self.parse1(self.buf, self.charpos)
-        token = self.tokens.pop(0)
-        return token
+        return self.tokens.pop(0)
 
     def nextline(self):
         '''
@@ -587,8 +555,7 @@ class PSBaseParser(object):
                     linebuf += c
                     self.charpos += 1
                 break
-            m = EOL.search(self.buf, self.charpos)
-            if m:
+            if m := EOL.search(self.buf, self.charpos):
                 linebuf += self.buf[self.charpos:m.end(0)]
                 self.charpos = m.end(0)
                 if sys.version_info[0] == 2:
@@ -596,12 +563,11 @@ class PSBaseParser(object):
                         eol = True
                     else:
                         break
-                else: 
-                    if bytes([linebuf[-1]]) == b'\r':
-                        eol = True
-                    else:
-                        break
-                    
+                elif bytes([linebuf[-1]]) == b'\r':
+                    eol = True
+                else:
+                    break
+
             else:
                 linebuf += self.buf[self.charpos:]
                 self.charpos = len(self.buf)
@@ -615,7 +581,7 @@ class PSBaseParser(object):
         self.fp.seek(0, 2)
         pos = self.fp.tell()
         buf = b''
-        while 0 < pos:
+        while pos > 0:
             prevpos = pos
             pos = max(0, pos-self.BUFSIZ)
             self.fp.seek(pos)
@@ -690,13 +656,9 @@ class PSStackParser(PSBaseParser):
         '''
         while not self.results:
             (pos, token) = self.nexttoken()
-            if (isinstance(token, int) or
-                    isinstance(token, Decimal) or
-                    isinstance(token, bool) or
-                    isinstance(token, bytearray) or
-                    isinstance(token, bytes) or
-                    isinstance(token, str) or
-                    isinstance(token, PSLiteral)):
+            if isinstance(
+                token, (int, Decimal, bool, bytearray, bytes, str, PSLiteral)
+            ):
                 # normal token
                 self.push((pos, token))
             elif token == KEYWORD_ARRAY_BEGIN:
@@ -721,8 +683,7 @@ class PSStackParser(PSBaseParser):
                         # temporary fix. is this due to rental books?
                         # raise PSSyntaxError(
                         #     'Invalid dictionary construct: %r' % objs)
-                    d = dict((literal_name(k), v) \
-                                 for (k,v) in choplist(2, objs))
+                    d = {literal_name(k): v for (k,v) in choplist(2, objs)}
                     self.push((pos, d))
                 except PSTypeError:
                     if STRICT: raise
@@ -730,12 +691,10 @@ class PSStackParser(PSBaseParser):
                 self.do_keyword(pos, token)
             if self.context:
                 continue
-            else:
-                if direct:
-                    return self.pop(1)[0]
-                self.flush()
-        obj = self.results.pop(0)
-        return obj
+            if direct:
+                return self.pop(1)[0]
+            self.flush()
+        return self.results.pop(0)
 
 
 LITERAL_CRYPT = LIT(b'Crypt')
@@ -803,13 +762,13 @@ def decipher_all(decipher, objid, genno, x):
     '''
     Recursively decipher X.
     '''
-    if isinstance(x, bytearray) or isinstance(x,bytes) or isinstance(x,str):
+    if isinstance(x, (bytearray, bytes, str)):
         return decipher(objid, genno, x)
     decf = lambda v: decipher_all(decipher, objid, genno, v)
     if isinstance(x, list):
         x = [decf(v) for v in x]
     elif isinstance(x, dict):
-        x = dict((k, decf(v)) for (k, v) in iter(x.items()))
+        x = {k: decf(v) for (k, v) in iter(x.items())}
     return x
 
 
@@ -832,7 +791,7 @@ def decimal_value(x):
 
 def num_value(x):
     x = resolve1(x)
-    if not (isinstance(x, int) or isinstance(x, Decimal)):
+    if not (isinstance(x, (int, Decimal))):
         if STRICT:
             raise PDFTypeError('Int or Float required: %r' % x)
         return 0
@@ -840,7 +799,7 @@ def num_value(x):
 
 def str_value(x):
     x = resolve1(x)
-    if not (isinstance(x, bytearray) or isinstance(x, bytes) or isinstance(x, str)):
+    if not (isinstance(x, (bytearray, bytes, str))):
         if STRICT:
             raise PDFTypeError('String required: %r' % x)
         return ''
@@ -848,7 +807,7 @@ def str_value(x):
 
 def list_value(x):
     x = resolve1(x)
-    if not (isinstance(x, list) or isinstance(x, tuple)):
+    if not (isinstance(x, (list, tuple))):
         if STRICT:
             raise PDFTypeError('List required: %r' % x)
         return []
@@ -875,7 +834,7 @@ def ascii85decode(data):
     n = b = 0
     out = b''
     for c in data:
-        if b'!' <= c and c <= b'u':
+        if b'!' <= c <= b'u':
             n += 1
             b = b*85+(c-33)
             if n == 5:
@@ -897,7 +856,6 @@ def ascii85decode(data):
 class PDFStream(PDFObject):
     def __init__(self, dic, rawdata, decipher=None):
         length = int_value(dic.get('Length', 0))
-        eol = rawdata[length:]
         # quick and dirty fix for false length attribute,
         # might not work if the pdf stream parser has a problem
         if decipher != None and decipher.__name__ == 'decrypt_aes':
@@ -905,6 +863,7 @@ class PDFStream(PDFObject):
                 cutdiv = len(rawdata) // 16
                 rawdata = rawdata[:16*cutdiv]
         else:
+            eol = rawdata[length:]
             if eol in (b'\r', b'\n', b'\r\n'):
                 rawdata = rawdata[:length]
 
@@ -963,8 +922,7 @@ class PDFStream(PDFObject):
             else:
                 params = self.dic.get('DecodeParms', {})
             if 'Predictor' in params:
-                pred = int_value(params['Predictor'])
-                if pred:
+                if pred := int_value(params['Predictor']):
                     if pred != 12:
                         raise PDFNotImplementedError(
                             'Unsupported predictor: %r' % pred)
@@ -980,10 +938,9 @@ class PDFStream(PDFObject):
                         if sys.version_info[0] == 2:
                             if pred == '\x02':
                                 ent1 = ''.join(chr((ord(a)+ord(b)) & 255) \
-                                               for (a,b) in zip(ent0,ent1))
-                        else: 
-                            if pred == 2:
-                                ent1 = b''.join(bytes([(a+b) & 255]) \
+                                                   for (a,b) in zip(ent0,ent1))
+                        elif pred == 2:
+                            ent1 = b''.join(bytes([(a+b) & 255]) \
                                             for (a,b) in zip(ent0,ent1))
                         buf += ent1
                         ent0 = ent1
@@ -1083,10 +1040,10 @@ class PDFXRef(object):
             assert kwd is self.KEYWORD_TRAILER
             (_,dic) = parser.nextobject(direct=True)
         except PSEOF:
-            x = parser.pop(1)
-            if not x:
+            if x := parser.pop(1):
+                (_,dic) = x[0]
+            else:
                 raise PDFNoValidXRef('Unexpected EOF - file corrupted')
-            (_,dic) = x[0]
         self.trailer = dict_value(dic)
         return
 
@@ -1110,12 +1067,11 @@ class PDFXRefStream(object):
         return
 
     def __repr__(self):
-        return '<PDFXRef: objids=%s>' % self.index
+        return f'<PDFXRef: objids={self.index}>'
 
     def objids(self):
         for first, size in self.index:
-            for objid in range(first, first + size):
-                yield objid
+            yield from range(first, first + size)
 
     def load(self, parser, debug=0):
         (_,objid) = parser.nexttoken() # ignored
@@ -1138,7 +1094,7 @@ class PDFXRefStream(object):
     def getpos(self, objid):
         offset = 0
         for first, size in self.index:
-            if first <= objid  and objid < (first + size):
+            if first <= objid < first + size:
                 break
             offset += size
         else:
@@ -1205,11 +1161,10 @@ class PDFDocument(object):
                 except:
                     self.encryption = (b'ffffffffffffffffffffffffffffffffffff',
                                        dict_value(trailer['Encrypt']))
-            if 'Root' in trailer:
-                self.set_root(dict_value(trailer['Root']))
-                break
-            else:
+            if 'Root' not in trailer:
                 raise PDFSyntaxError('No /Root object! - Is this really a PDF?')
+            self.set_root(dict_value(trailer['Root']))
+            break
         # The document is set to be non-ready again, until all the
         # proper initialization (asking the password key and
         # verifying the access permission, so on) is finished.
@@ -1235,7 +1190,6 @@ class PDFDocument(object):
             self.is_printable = self.is_modifiable = self.is_extractable = True
             self.ready = True
             raise PDFEncryptionError('Document is not encrypted.')
-            return
         (docid, param) = self.encryption
         type = literal_name(param['Filter'])
         if type == 'Adobe.APS':
@@ -1256,8 +1210,7 @@ class PDFDocument(object):
             return None
 
         (docid, param) = self.encryption
-        type = literal_name(param['Filter'])
-        return type
+        return literal_name(param['Filter'])
 
     def initialize_adobe_ps(self, password, docid, param):
         global KEYFILEPATH
@@ -1276,14 +1229,10 @@ class PDFDocument(object):
         edcdata = str_value(param.get('EDCData')).decode('base64')
         pdrllic = str_value(param.get('PDRLLic')).decode('base64')
         pdrlpol = str_value(param.get('PDRLPol')).decode('base64')
-        edclist = []
-        for pair in edcdata.split(b'\n'):
-            edclist.append(pair)
+        edclist = list(edcdata.split(b'\n'))
         # principal key request
-        for key in principalkeys:
-            if key in pdrllic:
-                principalkey = principalkeys[key]
-            else:
+        for key, principalkey in principalkeys.items():
+            if key not in pdrllic:
                 raise ADEPTError('Cannot find principal key for this pdf')
         shakey = SHA256(principalkey)
         ivector = bytes(16) # 16 zero bytes
@@ -1293,9 +1242,8 @@ class PDFDocument(object):
         pdrlpol = AES.new(plaintext[16:32],AES.MODE_CBC,edclist[2].decode('base64')).decrypt(pdrlpol)
         if pdrlpol[-1] < 1 or pdrlpol[-1] > 16:
             raise ADEPTError('Could not decrypt PDRLPol, aborting ...')
-        else:
-            cutter = -1 * pdrlpol[-1]
-            pdrlpol = pdrlpol[:cutter]
+        cutter = -1 * pdrlpol[-1]
+        pdrlpol = pdrlpol[:cutter]
         return plaintext[:16]
 
     PASSWORD_PADDING = b'(\xbfN^Nu\x8aAd\x00NV\xff\xfa\x01\x08..' \
@@ -1322,9 +1270,7 @@ class PDFDocument(object):
         salt = U[32:32+8]
         # Truncate password:
         password = password[:min(127, len(password))]
-        if self.hash_V5(password, salt, b"", param) == userdata:
-            return True
-        return None
+        return True if self.hash_V5(password, salt, b"", param) == userdata else None
 
     def check_owner_password_V5(self, password, param):
         U = str_value(param['U'])
@@ -1360,9 +1306,7 @@ class PDFDocument(object):
 
         intermediate_key = self.hash_V5(key_password, key_salt, user_data, param)
 
-        file_key = self.process_with_aes(intermediate_key, False, encrypted_file_key)
-
-        return file_key
+        return self.process_with_aes(intermediate_key, False, encrypted_file_key)
 
 
     def process_with_aes(self, key, encrypt, data, repetitions = 1, iv = None):
@@ -1372,12 +1316,9 @@ class PDFDocument(object):
         aes = AES.new(key, AES.MODE_CBC, iv)
 
         if not encrypt:
-            plaintext = aes.decrypt(data)
-            return plaintext
-        else:
-            new_data = bytes(data * repetitions)
-            crypt = aes.encrypt(new_data)
-            return crypt
+            return aes.decrypt(data)
+        new_data = bytes(data * repetitions)
+        return aes.encrypt(new_data)
 
 
     def hash_V5(self, password, salt, userdata, param):
@@ -1397,10 +1338,7 @@ class PDFDocument(object):
                 E = self.process_with_aes(K[:16], True, K1, 64, K[16:32])
                 E = bytearray(E)
 
-                E_mod_3 = 0
-                for i in range(16):
-                    E_mod_3 += E[i]
-
+                E_mod_3 = sum(E[i] for i in range(16))
                 E_mod_3 %= 3
 
                 K = (hashlib.sha256, hashlib.sha384, hashlib.sha512)[E_mod_3](E).digest()
@@ -1410,8 +1348,7 @@ class PDFDocument(object):
                     if ch <= round_number - 32:
                         done = True
 
-            result = K[0:32]
-            return result
+            return K[:32]
         else:
             raise NotImplementedError("Revision > 6 not supported.")
 
@@ -1457,10 +1394,7 @@ class PDFDocument(object):
         # This trick only works with V4 and lower.
 
         enc_key = self.check_user_password(x, docid, param)
-        if enc_key is not None:
-            return enc_key
-
-        return False
+        return enc_key if enc_key is not None else False
 
 
 
